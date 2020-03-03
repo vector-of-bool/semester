@@ -35,7 +35,7 @@ namespace detail {
 /// Simple trait to check if a `T` is one of the valid alternative in a variant.
 /// (Base case undefined)
 template <typename Variant, typename T>
-constexpr bool variant_supports_v;
+constexpr bool variant_supports_v = false;
 
 /// Implementation. Checks that any of the variant types is `T`
 template <typename... Ts, typename T>

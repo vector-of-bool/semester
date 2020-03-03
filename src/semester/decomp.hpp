@@ -31,8 +31,6 @@ inline struct dc_pass_t {
 
 using dc_result_t = std::variant<dc_reject_t, dc_accept_t, dc_pass_t>;
 
-inline namespace decompose_ops {
-
 namespace detail {
 
 struct nocopy {
@@ -42,6 +40,8 @@ struct nocopy {
 };
 
 }  // namespace detail
+
+inline namespace decompose_ops {
 
 /**
  * Given a sequence of visitors, try each visitor on the data until one of them
