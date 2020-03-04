@@ -97,8 +97,8 @@ class if_key : try_seq<Funcs...> {
 
 public:
     explicit if_key(std::string_view k, Funcs&&... fns) noexcept
-        : _key(k)
-        , if_key::try_seq(NEO_FWD(fns)...) {}
+        : if_key::try_seq(NEO_FWD(fns)...)
+        , _key(k) {}
 
     template <typename Key, typename Data>
     dc_result_t operator()(const Key& k, const Data& dat) const
