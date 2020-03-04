@@ -307,7 +307,7 @@ class put_into : detail::nocopy {
     template <typename Type, typename Data, typename Target>
     dc_result_t _try_put_1(Data&& dat, Target& t) const
         noexcept(noexcept(t = std::declval<Type>())) {
-        static_assert(dat.template supports<Type>,
+        static_assert(std::decay_t<Data>::template supports<Type>,
                       "The destination of a put_into() is not of a "
                       "type supported by the decomposee data");
         using std::get;
