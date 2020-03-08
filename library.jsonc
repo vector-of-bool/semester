@@ -1,0 +1,7 @@
+{
+    "name": "semester",
+    "uses": [
+        "neo/fun",
+        "neo/concepts",
+    ]
+}

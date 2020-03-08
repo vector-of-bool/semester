@@ -31,8 +31,6 @@ inline struct dc_pass_t {
 
 using dc_result_t = std::variant<dc_reject_t, dc_accept_t, dc_pass_t>;
 
-inline namespace decompose_ops {
-
 namespace detail {
 
 struct nocopy {
@@ -42,6 +40,8 @@ struct nocopy {
 };
 
 }  // namespace detail
+
+inline namespace decompose_ops {
 
 /**
  * Given a sequence of visitors, try each visitor on the data until one of them
@@ -97,8 +97,8 @@ class if_key : try_seq<Funcs...> {
 
 public:
     explicit if_key(std::string_view k, Funcs&&... fns) noexcept
-        : _key(k)
-        , if_key::try_seq(NEO_FWD(fns)...) {}
+        : if_key::try_seq(NEO_FWD(fns)...)
+        , _key(k) {}
 
     template <typename Key, typename Data>
     dc_result_t operator()(const Key& k, const Data& dat) const
@@ -307,7 +307,7 @@ class put_into : detail::nocopy {
     template <typename Type, typename Data, typename Target>
     dc_result_t _try_put_1(Data&& dat, Target& t) const
         noexcept(noexcept(t = std::declval<Type>())) {
-        static_assert(dat.template supports<Type>,
+        static_assert(std::decay_t<Data>::template supports<Type>,
                       "The destination of a put_into() is not of a "
                       "type supported by the decomposee data");
         using std::get;

@@ -35,7 +35,7 @@ namespace detail {
 /// Simple trait to check if a `T` is one of the valid alternative in a variant.
 /// (Base case undefined)
 template <typename Variant, typename T>
-constexpr bool variant_supports_v;
+constexpr bool variant_supports_v = false;
 
 /// Implementation. Checks that any of the variant types is `T`
 template <typename... Ts, typename T>
@@ -247,7 +247,7 @@ private:
 
     template <typename T, typename U = T>
     static variant_type
-    _convert(U&& value) noexcept(noexcept(static_cast<variant_type>(NEO_FWD(value)))) {
+    _convert(U&& value) noexcept(std::is_nothrow_constructible_v<variant_type, U>) {
         static_assert(neo::convertible_to<T, variant_type>,
                       "The given value is not implicitly convertible to the any underlying data "
                       "type, and no conversion function was provided");
@@ -322,28 +322,39 @@ public:
         return std::visit(NEO_FWD(fn), _var);
     }
 
-    template <typename T, typename = std::enable_if_t<supports<T>>>
-    friend constexpr bool operator==(const data_impl& lhs,
-                                     const T& rhs) noexcept(noexcept(std::declval<const T&>()
+    // For the "transparent"-ish equality operators, inhibit conversions that unintentionally
+    // add them to the overload set when comparing disparate types. MSVC/GCC rank these overloads
+    // differently, and MSVC will consider it ambiguous.
+    template <typename T,
+              neo::derived_from<data_impl> SelfType,
+              typename = std::enable_if_t<supports<T>>>
+    friend constexpr bool operator==(const SelfType& lhs,
+                                     const T&        rhs) noexcept(noexcept(std::declval<const T&>()
                                                                      == std::declval<const T&>())) {
-        return lhs.holds_alternative<T>() && lhs.as<T>() == rhs;
+        return lhs.template holds_alternative<T>() && lhs.template as<T>() == rhs;
     }
 
-    template <typename T, typename = std::enable_if_t<supports<T>>>
-    friend constexpr bool operator==(const T&         lhs,
-                                     const data_impl& rhs) noexcept(noexcept(rhs == lhs)) {
+    template <typename T,
+              neo::derived_from<data_impl> SelfType,
+              typename = std::enable_if_t<supports<T>>>
+    friend constexpr bool operator==(const T&        lhs,
+                                     const SelfType& rhs) noexcept(noexcept(rhs == lhs)) {
         return rhs == lhs;
     }
 
-    template <typename T, typename = std::enable_if_t<supports<T>>>
-    friend constexpr bool operator!=(const data_impl& lhs,
-                                     const T&         rhs) noexcept(noexcept(lhs == rhs)) {
+    template <typename T,
+              neo::derived_from<data_impl> SelfType,
+              typename = std::enable_if_t<supports<T>>>
+    friend constexpr bool operator!=(const SelfType& lhs,
+                                     const T&        rhs) noexcept(noexcept(lhs == rhs)) {
         return !(lhs == rhs);
     }
 
-    template <typename T, typename = std::enable_if_t<supports<T>>>
-    friend constexpr bool operator!=(const T&         lhs,
-                                     const data_impl& rhs) noexcept(noexcept(rhs == lhs)) {
+    template <typename T,
+              neo::derived_from<data_impl> SelfType,
+              typename = std::enable_if_t<supports<T>>>
+    friend constexpr bool operator!=(const T&        lhs,
+                                     const SelfType& rhs) noexcept(noexcept(rhs == lhs)) {
         return !(rhs == lhs);
     }
 
