@@ -1,8 +1,0 @@
-Name: vob-semester
-Version: 0.1.0
-Namespace: vob
-
-Test-Driver: Catch-Main
-
-Depends: neo-fun ^0.1.0
-Depends: neo-concepts ^0.2.1

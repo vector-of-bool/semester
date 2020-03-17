@@ -15,7 +15,7 @@ namespace semester {
  * Base traits for JSON-style data
  */
 template <typename Allocator>
-struct json_traits {
+struct json_traits_alloc {
     template <typename Data>
     struct traits {
         using allocator_type = Allocator;
@@ -52,11 +52,11 @@ struct json_traits {
     };
 };
 
+struct json_traits : json_traits_alloc<std::allocator<void>> {};
+
 /**
  * A structure that can contain JSON data
  */
-struct json_data : basic_data<json_traits<std::allocator<void>>> {
-    using basic_data::basic_data;
-};
+using json_data = basic_data<json_traits>;
 
 }  // namespace semester
