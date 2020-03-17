@@ -4,7 +4,7 @@
     "namespace": "vob",
     "test_driver": "Catch-Main",
     "depends": {
-        "neo-fun": "^0.1.0",
-        "neo-concepts": "^0.2.1",
+        "neo-fun": "^0.1.1",
+        "neo-concepts": "^0.2.2",
     }
 }
