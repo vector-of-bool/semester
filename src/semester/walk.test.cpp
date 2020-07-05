@@ -1,0 +1,169 @@
+#include "./walk.hpp"
+
+#include <semester/json.hpp>
+
+#include <catch2/catch.hpp>
+
+#include <neo/test_concept.hpp>
+
+struct func {
+    void operator()(int) {}
+};
+
+NEO_TEST_CONCEPT(neo::same_as<int, semester::detail::vst_arg_t<func>>);
+
+TEST_CASE("Simple walk_seq") {
+    semester::json_data dat = 34.0;
+
+    bool ok = false;
+    using semester::walk;
+    walk(
+        dat,
+        [&](std::string) {
+            FAIL("Should not get here");
+            return walk.accept;
+        },
+        [&](double) {
+            ok = true;
+            return walk.accept;
+        },
+        [&](auto) {
+            FAIL("Nor here");
+            return walk.pass;
+        });
+    CHECK(ok);
+
+    ok = false;
+    walk(
+        dat,
+        [&](auto) {
+            ok = true;
+            return walk.accept;
+        },
+        [](auto) {
+            FAIL("Bad");
+            return walk.pass;
+        });
+    CHECK(ok);
+
+    ok = false;
+    CHECK_THROWS_AS(walk(
+                        dat,
+                        [&](auto) {
+                            ok = true;
+                            return walk.pass;
+                        },
+                        [](auto) { return walk.pass; }),
+                    semester::walk_error);
+    CHECK(ok);
+}
+
+TEST_CASE("put_into objects") {
+    semester::json_data data = "I am a string";
+
+    std::string                result;
+    std::optional<std::string> opt_str;
+
+    using namespace semester::walk_ops;
+    using semester::walk;
+    walk(data, put_into(result));
+    CHECK(result == data);
+
+    walk(data, put_into(opt_str));
+    CHECK(opt_str.has_value());
+    CHECK(opt_str == data);
+
+    // put-into using a projection function
+    std::size_t length = 0;
+    walk(data, put_into(length, [](std::string const& str) { return str.length(); }));
+    CHECK(length == data.as_string().length());
+
+    // put-into with a projection and an optional
+    std::optional<std::size_t> opt_length;
+    walk(data, put_into(opt_length, [](std::string s) { return s.length(); }));
+    CHECK(opt_length.has_value());
+    CHECK(opt_length == length);
+
+    // put-into with a bad type will throw
+    bool b = false;
+    CHECK_THROWS_AS(walk(data, put_into(b)), semester::walk_error);
+}
+
+TEST_CASE("Mappings") {
+    semester::json_data dat = semester::json_data::mapping_type{
+        {"foo", "bar"},
+        {"baz", 33},
+    };
+
+    using namespace semester::walk_ops;
+    using semester::walk;
+
+    std::string foo_string;
+    double      baz_value;
+    walk(dat, mapping(if_key("foo", put_into(foo_string)), if_key("baz", put_into(baz_value))));
+    CHECK(foo_string == "bar");
+    CHECK(baz_value == 33.0);
+
+    // Throws for missing keys that are required
+    auto result = walk.try_walk(  //
+        dat,
+        mapping{
+            if_key{"foo", put_into(foo_string)},
+            if_key{"baz", just_accept},
+            required_key{"quux", "'quux' is required", just_accept},
+        });
+    CHECK(result.rejected());
+}
+
+TEST_CASE("Array iteration") {
+    semester::json_data dat = semester::json_data::array_type{"some string", 55, false};
+
+    double      number = 0;
+    std::string string;
+    bool        b = true;
+    using namespace semester::walk_ops;
+    semester::walk(dat,
+                   for_each(walk_seq(if_type<std::string>(put_into(string)),
+                                     if_type<double>(put_into(number)),
+                                     if_type<bool>(put_into(b)))));
+    CHECK(number == 55);
+    CHECK(string == "some string");
+    CHECK_FALSE(b);
+}
+
+TEST_CASE("Array insertion") {
+    semester::json_data dat = semester::json_data::array_type{
+        "string 1",
+        55,
+        "string 2",
+        "string 3",
+        8,
+        9,
+    };
+
+    std::vector<std::string> strings;
+    std::vector<double>      numbers;
+    using namespace semester::walk_ops;
+    semester::walk(dat,
+                   for_each(walk_seq{if_type<std::string>(put_into{std::back_inserter(strings)}),
+                                     if_type<double>(put_into(std::back_inserter(numbers)))}));
+    CHECK(strings == (std::vector<std::string>{"string 1", "string 2", "string 3"}));
+    CHECK(numbers == (std::vector<double>{55, 8, 9}));
+}
+
+TEST_CASE("Just reject") {
+    auto rej = semester::walk.try_walk(12, semester::reject_with("Dummy string"));
+    REQUIRE(rej.rejected());
+    CHECK(rej.rejection().message == "<root>: Dummy string");
+}
+
+TEST_CASE("Just accept") {
+    using namespace semester::walk_ops;
+    semester::walk(12, just_accept);
+
+    semester::json_data dat = semester::json_data::mapping_type{
+        {"foo", semester::null},
+    };
+
+    semester::walk(dat, mapping{if_key{"foo", just_accept}});
+}
