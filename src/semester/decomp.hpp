@@ -3,9 +3,12 @@
 #include <neo/concepts.hpp>
 #include <neo/fwd.hpp>
 
+#include "./get.hpp"
+
 #include <cassert>
 #include <functional>
 #include <optional>
+#include <string>
 #include <tuple>
 #include <variant>
 
@@ -120,8 +123,7 @@ public:
 
     template <typename Data>
     dc_result_t operator()(const Data& dat) const noexcept(if_type_fn::template nothrow_for<Data>) {
-        using std::holds_alternative;
-        if (holds_alternative<Type>(dat)) {
+        if (semester::holds_alternative<Type>(dat)) {
             return this->invoke(dat);
         }
         return dc_pass;
@@ -142,8 +144,7 @@ struct require_type {
 
     template <typename Data>
     dc_result_t operator()(const Data& dat) const noexcept {
-        using std::holds_alternative;
-        if (holds_alternative<T>(dat)) {
+        if (semester::holds_alternative<T>(dat)) {
             return dc_pass;
         }
         return dc_reject_t{std::string(message)};
@@ -161,7 +162,7 @@ public:
     template <supports_mappings Data>
     dc_result_t operator()(const Data& dat) const noexcept(if_mapping::template nothrow_for<Data>) {
         using std::holds_alternative;
-        if (holds_alternative<typename Data::mapping_type>(dat)) {
+        if (semester::holds_alternative<typename Data::mapping_type>(dat)) {
             return this->invoke(dat);
         }
         return dc_pass;
@@ -211,13 +212,11 @@ public:
     template <typename Data>
     requires supports_arrays<std::decay_t<Data>> dc_result_t operator()(Data&& dat) const
         noexcept(_noexcept<std::decay_t<Data>>) {
-        using std::get;
-        using std::holds_alternative;
         using array_type = typename std::decay_t<Data>::array_type;
-        if (!holds_alternative<array_type>(dat)) {
+        if (!semester::holds_alternative<array_type>(dat)) {
             return dc_reject_t{"Expected an array"};
         }
-        decltype(auto) arr = get<array_type>(NEO_FWD(dat));
+        decltype(auto) arr = semester::get<array_type>(NEO_FWD(dat));
         for (decltype(auto) element : arr) {
             dc_result_t interim = this->invoke(element);
             if (holds_alternative<dc_reject_t>(interim)) {
@@ -274,12 +273,10 @@ public:
     requires supports_mappings<std::decay_t<Data>> dc_result_t operator()(Data&& dat) const
         noexcept(_all_noexcept<std::decay_t<Data>>) {
         using mapping_type = typename std::decay_t<Data>::mapping_type;
-        using std::get;
-        using std::holds_alternative;
-        if (!holds_alternative<mapping_type>(dat)) {
+        if (!semester::holds_alternative<mapping_type>(dat)) {
             return dc_reject_t{"Data is not a mapping"};
         }
-        const mapping_type& map = get<mapping_type>(NEO_FWD(dat));
+        const mapping_type& map = semester::get<mapping_type>(dat);
         for (const auto& [key, value] : map) {
             dc_result_t part_result
                 = std::apply([&](auto&&... key_fn) { return _try_key(key, value, key_fn...); },
@@ -310,10 +307,8 @@ class put_into : detail::nocopy {
         static_assert(std::decay_t<Data>::template supports<Type>,
                       "The destination of a put_into() is not of a "
                       "type supported by the decomposee data");
-        using std::get;
-        using std::holds_alternative;
-        if (holds_alternative<Type>(dat)) {
-            t = get<Type>(NEO_FWD(dat));
+        if (semester::holds_alternative<Type>(dat)) {
+            t = semester::get<Type>(NEO_FWD(dat));
             return dc_accept;
         } else {
             return dc_reject_t{"No valid conversion from the destination type"};
@@ -372,12 +367,10 @@ public:
         noexcept(++_iter)                                                               //
     ) {
         using value_type = typename _get_value_type<Iterator>::type;
-        using std::get;
-        using std::holds_alternative;
-        if (!holds_alternative<value_type>(dat)) {
+        if (!semester::holds_alternative<value_type>(dat)) {
             return dc_reject_t{"Data has incorrect type"};
         }
-        *_iter = get<value_type>(NEO_FWD(dat));
+        *_iter = semester::get<value_type>(NEO_FWD(dat));
         ++_iter;
         return dc_accept;
     }
