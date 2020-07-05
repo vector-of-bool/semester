@@ -134,6 +134,13 @@ public:
     auto& rejection() const noexcept {
         return std::get<walk_reject>(_var);
     }
+
+    template <typename E = walk_error>
+    void throw_if_rejected() const {
+        if (rejected()) {
+            throw E(rejection().message);
+        }
+    }
 };
 
 inline namespace walk_ops {
@@ -602,12 +609,14 @@ inline constexpr struct walk_fn {
     template <typename Data, typename... Handlers>
     constexpr decltype(auto) operator()(Data&& dat, Handlers&&... hs) const {
         auto res = try_walk(NEO_FWD(dat), NEO_FWD(hs)...);
-        if (res.rejected()) {
-            throw walk_error(res.rejection().message);
-        }
+        res.throw_if_rejected();
     }
 
     std::string_view path() const noexcept { return detail::walk_path; }
 } walk;
+
+namespace walk_ops {
+using semester::walk;
+}
 
 }  // namespace semester
