@@ -318,9 +318,17 @@ public:
             auto&& proj = _project(NEO_FWD(dat));
             return _put(_target, NEO_FWD(proj));
         } else {
-            using arg_type = detail::vst_arg_t<Project>;
-            auto&& proj    = _project(semester::get<arg_type>(NEO_FWD(dat)));
-            return _put(_target, NEO_FWD(proj));
+            using arg_type        = detail::vst_arg_t<Project>;
+            constexpr bool inv_ok = neo::invocable<Project, Data>;
+            if constexpr (inv_ok) {
+                auto&& proj = _project(NEO_FWD(dat));
+                return _put(_target, NEO_FWD(proj));
+            } else {
+                static_assert(supports_alternative<Data, arg_type>,
+                              "projection function cannot handle the argument we wish to give it");
+                auto&& proj = _project(semester::get<arg_type>(NEO_FWD(dat)));
+                return _put(_target, NEO_FWD(proj));
+            }
         }
     }
 };
