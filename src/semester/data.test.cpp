@@ -1,5 +1,7 @@
 #include <semester/data.hpp>
 
+#include <semester/get.hpp>
+
 #include <catch2/catch.hpp>
 
 #include <string>
@@ -20,8 +22,7 @@ TEST_CASE("Create basic data") {
     data dat;
     CHECK(dat.is_int());  // Defaults to the first base type
     CHECK(dat.holds_alternative<int>());
-    using std::holds_alternative;
-    CHECK(holds_alternative<int>(dat));
+    CHECK(semester::holds_alternative<int>(dat));
 
     dat = 44;
     CHECK(dat == 44);

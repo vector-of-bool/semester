@@ -273,8 +273,8 @@ public:
      * Support implicit conversions from supported types
      */
     template <typename Arg>
-    requires !std::is_base_of_v<data_impl, std::decay_t<Arg>>  //
-    data_impl(Arg && arg) noexcept(noexcept(variant_type(_convert<Arg>(arg))))
+    requires(!std::is_base_of_v<data_impl, std::decay_t<Arg>>)  //
+        data_impl(Arg&& arg) noexcept(noexcept(variant_type(_convert<Arg>(arg))))
         : _var(_convert<Arg>(arg)) {}
 
     /// Check if the data supports a certain type T
@@ -382,44 +382,6 @@ class basic_data : public detail::basic_data_base<
                        typename TraitsTemplate::template traits<basic_data<TraitsTemplate>>> {
 public:
     using basic_data::basic_data_base::basic_data_base;
-    using basic_data::data_impl::as;
-    using basic_data::data_impl::holds_alternative;
-
-    template <typename T>
-    friend constexpr bool holds_alternative(const basic_data& self) noexcept {
-        return self.template holds_alternative<T>();
-    }
-
-    template <typename T>
-    friend constexpr T& get(basic_data& self) {
-        return self.template as<T>();
-    }
-
-    template <typename T>
-    friend constexpr const T& get(const basic_data& self) {
-        return self.template as<T>();
-    }
-
-    template <typename T>
-    friend constexpr T&& get(basic_data&& self) {
-        return std::move(self).template as<T>();
-    }
-
-    template <typename T>
-    friend constexpr T* get_if(basic_data* self) noexcept {
-        if (self->template holds_alternative<T>()) {
-            return std::addressof(self->template as<T>());
-        }
-        return nullptr;
-    }
-
-    template <typename T>
-    friend constexpr const T* get_if(const basic_data* self) noexcept {
-        if (self->template holds_alternative<T>()) {
-            return std::addressof(self->template as<T>());
-        }
-        return nullptr;
-    }
 };
 
 }  // namespace semester

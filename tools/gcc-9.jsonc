@@ -1,11 +1,5 @@
-// Compiler-ID: GNU
-// C++-Version: C++17
-// C-Compiler: gcc-9
-// C++-Compiler: g++-9
-// Flags: -fconcepts
 {
     "compiler_id": "gnu",
-    "cxx_version": "c++17",
     "cxx_compiler": "g++-9",
-    "flags": "-fconcepts"
+    "flags": "-fconcepts -std=c++2a -Wall -Wextra -Wconversion -pedantic",
 }

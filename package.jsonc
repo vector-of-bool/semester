@@ -1,10 +1,10 @@
 {
     "name": "vob-semester",
-    "version": "0.1.1",
+    "version": "0.2.0",
     "namespace": "vob",
     "test_driver": "Catch-Main",
     "depends": {
-        "neo-fun": "^0.1.1",
-        "neo-concepts": "^0.2.2",
+        "neo-fun": "^0.3.2",
+        "neo-concepts": "^0.3.2",
     }
 }
