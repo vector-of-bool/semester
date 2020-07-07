@@ -598,7 +598,7 @@ public:
 };
 
 template <typename... Fs>
-for_each(Fs&&...) -> for_each<Fs&&...>;
+for_each(Fs&&...) -> for_each<Fs...>;
 
 }  // namespace walk_ops
 
