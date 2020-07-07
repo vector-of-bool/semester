@@ -1,6 +1,4 @@
-// Compiler-ID: MSVC
-// Flags: /std:c++latest
 {
     "compiler_id": "msvc",
-    "flags": "/std:c++latest /experimental:preprocessor"
+    "flags": "/std:c++latest /Zc:preprocessor"
 }
