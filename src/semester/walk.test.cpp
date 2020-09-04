@@ -87,6 +87,11 @@ TEST_CASE("put_into objects") {
     // put-into with a bad type will throw
     bool b = false;
     CHECK_THROWS_AS(walk(data, put_into(b)), semester::walk_error);
+
+    // put-into a back_inserter
+    std::vector<std::size_t> vec;
+    walk(data, put_into(std::back_inserter(vec), [](std::string s) { return s.length(); }));
+    CHECKED_IF(vec.size() == 1) { CHECK(vec[0] == length); }
 }
 
 TEST_CASE("Mappings") {
