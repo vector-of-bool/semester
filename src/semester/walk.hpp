@@ -291,7 +291,7 @@ struct put_into {
                 throw walk_error("Incorrect type to put-into a value");
             }
             into = *ref;
-        } else if constexpr (neo::assignable_from<dest_type, Value>) {
+        } else if constexpr (neo::assignable_from<dest_type&, Value>) {
             *into = NEO_FWD(val);
         } else {
             auto ref = try_get<dest_type>(val);
