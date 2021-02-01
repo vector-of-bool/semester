@@ -7,7 +7,7 @@ TEST_CASE("Create a JSON node") {
     semester::json_data d2 = 6;
     CHECK(d1 != d2);
     d2 = "I am a string";
-    CHECK(d2.holds_alternative<std::string>());
+    CHECK(semester::holds_alternative<std::string>(d2));
     CHECK(d2 == "I am a string");
     CHECK(d2 != "I am a different string");
 

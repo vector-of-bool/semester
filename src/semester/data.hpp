@@ -1,6 +1,9 @@
 #pragma once
 
+#include <semester/get.hpp>
+
 #include <neo/concepts.hpp>
+#include <neo/declval.hpp>
 #include <neo/fwd.hpp>
 
 #include <cinttypes>
@@ -14,8 +17,7 @@ namespace semester {
  * Type and value to represent "null" values.
  */
 constexpr inline struct null_t {
-    friend constexpr bool operator==(null_t, null_t) noexcept { return true; }
-    friend constexpr bool operator!=(null_t, null_t) noexcept { return false; }
+    constexpr bool operator==(null_t) const noexcept { return true; }
 } null;
 
 /**
@@ -32,19 +34,10 @@ constexpr inline struct empty_mapping_t {
 
 namespace detail {
 
-/// Simple trait to check if a `T` is one of the valid alternative in a variant.
-/// (Base case undefined)
-template <typename Variant, typename T>
-constexpr bool variant_supports_v = false;
-
-/// Implementation. Checks that any of the variant types is `T`
-template <typename... Ts, typename T>
-constexpr bool variant_supports_v<std::variant<Ts...>, T> = (std::is_same_v<T, Ts> || ...);
-
 /**
  * data_conv_mems_for provides additional convenience methods to a basic_data
  * object based on the base types that it can hold. For each type T that can be
- * stored, a specialization fo data_conv_mems_for is derived from.
+ * stored, a specialization of data_conv_mems_for is derived from.
  *
  * In the primary definition (below), there are no convenience members.
  * Partial specializations are provided below that add the appropriate members.
@@ -67,10 +60,10 @@ struct data_conv_mems_for_intrin {};
 // Convenience macros to declare the convenience methods.
 #define DECL_CONV_MEMS(Name, Type)                                                                 \
     constexpr bool is_##Name() const noexcept {                                                    \
-        return AS_C_DERIVED.template holds_alternative<Type>();                                    \
+        return semester::holds_alternative<Type>(AS_C_DERIVED);                                    \
     }                                                                                              \
-    constexpr Type&       as_##Name() noexcept { return AS_DERIVED.template as<Type>(); }          \
-    constexpr const Type& as_##Name() const noexcept { return AS_C_DERIVED.template as<Type>(); }  \
+    constexpr Type&       as_##Name() noexcept { return semester::get<Type>(AS_DERIVED); }         \
+    constexpr const Type& as_##Name() const noexcept { return semester::get<Type>(AS_C_DERIVED); } \
     static_assert(true)
 
 // Helpers for `int`
@@ -159,7 +152,7 @@ struct data_conv_mems<data_impl<Traits>, std::variant<Ts...>>
 /**
  * Generate mapping-access members
  */
-template <typename Traits, typename = void>
+template <typename Traits>
 struct data_mapping_part : data_impl<Traits> {
     // Inherit the constructors
     using data_mapping_part::data_impl::data_impl;
@@ -167,9 +160,12 @@ struct data_mapping_part : data_impl<Traits> {
     constexpr static bool supports_mappings = false;
 };
 
-/// Matches if traits has an `mapping_type`
+/// Matches if traits has a `mapping_type`
 template <typename Traits>
-struct data_mapping_part<Traits, std::void_t<typename Traits::mapping_type>> : data_impl<Traits> {
+requires requires {
+    typename Traits::mapping_type;
+}
+struct data_mapping_part<Traits> : data_impl<Traits> {
     // Inherit the constructors
     using data_mapping_part::data_impl::data_impl;
 
@@ -178,21 +174,21 @@ struct data_mapping_part<Traits, std::void_t<typename Traits::mapping_type>> : d
     using mapping_type = typename Traits::mapping_type;
 
     constexpr bool is_mapping() const noexcept {
-        return this->template holds_alternative<mapping_type>();
+        return semester::holds_alternative<mapping_type>(*this);
     }
 
     constexpr mapping_type&       as_mapping() { return this->template as<mapping_type>(); }
     constexpr const mapping_type& as_mapping() const { return this->template as<mapping_type>(); }
 
     // A constructor for an empty mapping type
-    data_mapping_part(empty_mapping_t)
+    constexpr data_mapping_part(empty_mapping_t)
         : data_mapping_part::data_impl(mapping_type()) {}
 };
 
 /**
  * Generate array-access members
  */
-template <typename Traits, typename = void>
+template <typename Traits>
 struct data_array_part : data_mapping_part<Traits> {
     // Inherit the constructors
     using data_array_part::data_mapping_part::data_mapping_part;
@@ -201,8 +197,10 @@ struct data_array_part : data_mapping_part<Traits> {
 
 /// Matches if traits has an `array_type`
 template <typename Traits>
-struct data_array_part<Traits,  //
-                       std::void_t<typename Traits::array_type>> : data_mapping_part<Traits> {
+requires requires {
+    typename Traits::array_type;
+}
+struct data_array_part<Traits> : data_mapping_part<Traits> {
     // Inherit the constructors
     using data_array_part::data_mapping_part::data_mapping_part;
 
@@ -211,14 +209,14 @@ struct data_array_part<Traits,  //
     using array_type = typename Traits::array_type;
 
     constexpr bool is_array() const noexcept {
-        return this->template holds_alternative<array_type>();
+        return semester::holds_alternative<array_type>(*this);
     }
 
     constexpr array_type&       as_array() { return this->template as<array_type>(); }
     constexpr const array_type& as_array() const { return this->template as<array_type>(); }
 
     // A constructor for an empty array type
-    data_array_part(empty_array_t)
+    constexpr data_array_part(empty_array_t)
         : data_array_part::data_mapping_part(array_type()) {}
 };
 
@@ -231,141 +229,105 @@ struct basic_data_base : data_array_part<Traits> {
 };
 
 /**
- * The class that actually contains the variant, as well as the basis members
- * `as()`, `holds_alternative()`, and `supports`
+ * The class that actually contains the variant, as well as the basis member
+ * `try_get()`
  */
 template <typename Traits>
 class data_impl : public data_conv_mems<data_impl<Traits>, typename Traits::variant_type> {
 public:
     /// The variant type that can store this class
     using variant_type = typename Traits::variant_type;
-    using traits_type  = Traits;
+    /// The traits type for this block of data
+    using traits_type = Traits;
 
 private:
     /// The actual variant holding our data
     variant_type _var;
 
-    template <typename T, typename U = T>
-    static variant_type
-    _convert(U&& value) noexcept(std::is_nothrow_constructible_v<variant_type, U>) {
-        static_assert(neo::convertible_to<T, variant_type>,
-                      "The given value is not implicitly convertible to the any underlying data "
-                      "type, and no conversion function was provided");
-        return static_cast<variant_type>(NEO_FWD(value));
-    }
+    template <typename T>
+    constexpr static bool _has_explicit_convert = requires(T&& value) {
+        { traits_type::convert(NEO_FWD(value)) }
+        ->neo::convertible_to<variant_type>;
+    };
 
-    template <typename T, typename U = T, typename TraitsDep = traits_type>
-    static variant_type
-    _convert(U&& value) noexcept(noexcept(traits_type::convert(NEO_FWD(value)))) requires requires {
-        TraitsDep::convert(NEO_FWD(value));
+    // Check that 'T' can convert to this data type
+    template <typename T>
+    constexpr static bool _convert_check =       //
+        neo::convertible_to<T, variant_type> ||  // Plain conversion
+        _has_explicit_convert<T>;                // Or a convert() traits function
+
+    // Check if the conversion (if available) is noexcept
+    template <typename T>
+    constexpr static bool _convert_noexcept =                //
+        std::is_nothrow_constructible_v<variant_type, T> ||  //
+        requires(T&& value) {
+        { traits_type::convert(NEO_FWD(NEO_DECLVAL(T))) }
+        noexcept;
+    };
+
+    template <typename T>
+    requires _convert_check<T> constexpr decltype(auto)
+    _convert(T&& value) noexcept(_convert_noexcept<T>) {
+        if constexpr (_has_explicit_convert<T>) {
+            return traits_type::convert(NEO_FWD(value));
+        } else {
+            return NEO_FWD(value);
+        }
     }
-    { return traits_type::convert(NEO_FWD(value)); }
 
 public:
-    data_impl()                 = default;
-    data_impl(const data_impl&) = default;
-    data_impl(data_impl&&)      = default;
-
-    data_impl& operator=(const data_impl&) = default;
-    data_impl& operator=(data_impl&&) = default;
+    constexpr data_impl() = default;
 
     /**
      * Support implicit conversions from supported types
      */
     template <typename Arg>
-    requires(!std::is_base_of_v<data_impl, std::decay_t<Arg>>)  //
-        data_impl(Arg&& arg) noexcept(noexcept(variant_type(_convert<Arg>(arg))))
-        : _var(_convert<Arg>(arg)) {}
+    requires _convert_check<Arg>  //
+        constexpr data_impl(Arg&& arg) noexcept(noexcept(variant_type(_convert(arg))))
+        : _var(_convert(NEO_FWD(arg))) {}
 
     /// Check if the data supports a certain type T
     template <typename T>
-    constexpr static bool supports = variant_supports_v<variant_type, T>;
+    constexpr static bool supports = supports_alternative<variant_type, T>;
 
-    /// Check whether we currently contain the type T
     template <typename T>
-    requires supports<T> constexpr bool holds_alternative() const noexcept {
-        return std::holds_alternative<T>(_var);
+    requires supports<T> constexpr T* try_get() noexcept {
+        return semester::try_get<T>(_var);
     }
 
-    /// Obtain a reference to the underlying T
     template <typename T>
-    requires supports<T> constexpr T& as() & {
-        return std::get<T>(_var);
-    }
-
-    /// Obtain an rvalue-reference to the underlying T
-    template <typename T>
-    requires supports<T> constexpr T&& as() && {
-        return std::get<T>(std::move(_var));
-    }
-
-    /// Obtain a const-reference to the underlying T
-    template <typename T>
-    requires supports<T> constexpr const T& as() const& {
-        return std::get<T>(_var);
+    requires supports<T> constexpr const T* try_get() const noexcept {
+        return semester::try_get<T>(_var);
     }
 
     /// Get a reference to the underlying variant
-    variant_type&       variant() & noexcept { return _var; }
-    variant_type&&      variant() && noexcept { return std::move(_var); }
-    const variant_type& variant() const& noexcept { return _var; }
+    constexpr variant_type&       variant() & noexcept { return _var; }
+    constexpr variant_type&&      variant() && noexcept { return std::move(_var); }
+    constexpr const variant_type& variant() const& noexcept { return _var; }
 
     /// Execute a visitor against the data
     template <typename Func>
-    decltype(auto) visit(Func&& fn) noexcept(noexcept(std::visit(NEO_FWD(fn), _var))) {
+    constexpr decltype(auto) visit(Func&& fn) noexcept(noexcept(std::visit(NEO_FWD(fn), _var))) {
         return std::visit(NEO_FWD(fn), _var);
     }
 
     /// Execute a visitor agains the data
     template <typename Func>
-    decltype(auto) visit(Func&& fn) const noexcept(noexcept(std::visit(NEO_FWD(fn), _var))) {
+    constexpr decltype(auto) visit(Func&& fn) const
+        noexcept(noexcept(std::visit(NEO_FWD(fn), _var))) {
         return std::visit(NEO_FWD(fn), _var);
     }
 
-    // For the "transparent"-ish equality operators, inhibit conversions that unintentionally
-    // add them to the overload set when comparing disparate types. MSVC/GCC rank these overloads
-    // differently, and MSVC will consider it ambiguous.
-    template <typename T,
-              neo::derived_from<data_impl> SelfType,
-              typename = std::enable_if_t<supports<T>>>
-    friend constexpr bool operator==(const SelfType& lhs,
-                                     const T&        rhs) noexcept(noexcept(std::declval<const T&>()
-                                                                     == std::declval<const T&>())) {
-        return lhs.template holds_alternative<T>() && lhs.template as<T>() == rhs;
+    template <typename T>
+    requires supports<T> constexpr bool operator==(const T& rhs) const
+        noexcept(noexcept(NEO_DECLVAL(const T&) == NEO_DECLVAL(const T&))) {
+        const auto ptr = semester::try_get<T>(*this);
+        return ptr && (*ptr == rhs);
     }
 
-    template <typename T,
-              neo::derived_from<data_impl> SelfType,
-              typename = std::enable_if_t<supports<T>>>
-    friend constexpr bool operator==(const T&        lhs,
-                                     const SelfType& rhs) noexcept(noexcept(rhs == lhs)) {
-        return rhs == lhs;
-    }
-
-    template <typename T,
-              neo::derived_from<data_impl> SelfType,
-              typename = std::enable_if_t<supports<T>>>
-    friend constexpr bool operator!=(const SelfType& lhs,
-                                     const T&        rhs) noexcept(noexcept(lhs == rhs)) {
-        return !(lhs == rhs);
-    }
-
-    template <typename T,
-              neo::derived_from<data_impl> SelfType,
-              typename = std::enable_if_t<supports<T>>>
-    friend constexpr bool operator!=(const T&        lhs,
-                                     const SelfType& rhs) noexcept(noexcept(rhs == lhs)) {
-        return !(rhs == lhs);
-    }
-
-    friend constexpr bool operator==(const data_impl& lhs, const data_impl& rhs) noexcept(
-        noexcept(std::declval<const variant_type&>() == std::declval<const variant_type&>())) {
-        return lhs.variant() == rhs.variant();
-    }
-
-    friend constexpr bool operator!=(const data_impl& lhs, const data_impl& rhs) noexcept(
-        noexcept(std::declval<const variant_type&>() != std::declval<const variant_type&>())) {
-        return lhs.variant() != rhs.variant();
+    constexpr bool operator==(const data_impl& rhs) const
+        noexcept(noexcept(NEO_DECLVAL(const variant_type&) == NEO_DECLVAL(const variant_type&))) {
+        return variant() == rhs.variant();
     }
 };
 
