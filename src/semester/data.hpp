@@ -177,8 +177,8 @@ struct data_mapping_part<Traits> : data_impl<Traits> {
         return semester::holds_alternative<mapping_type>(*this);
     }
 
-    constexpr mapping_type&       as_mapping() { return this->template as<mapping_type>(); }
-    constexpr const mapping_type& as_mapping() const { return this->template as<mapping_type>(); }
+    constexpr mapping_type&       as_mapping() { return semester::get<mapping_type>(*this); }
+    constexpr const mapping_type& as_mapping() const { return semester::get<mapping_type>(*this); }
 
     // A constructor for an empty mapping type
     constexpr data_mapping_part(empty_mapping_t)
@@ -212,8 +212,8 @@ struct data_array_part<Traits> : data_mapping_part<Traits> {
         return semester::holds_alternative<array_type>(*this);
     }
 
-    constexpr array_type&       as_array() { return this->template as<array_type>(); }
-    constexpr const array_type& as_array() const { return this->template as<array_type>(); }
+    constexpr array_type&       as_array() { return semester::get<array_type>(*this); }
+    constexpr const array_type& as_array() const { return semester::get<array_type>(*this); }
 
     // A constructor for an empty array type
     constexpr data_array_part(empty_array_t)
