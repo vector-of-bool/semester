@@ -228,6 +228,18 @@ struct basic_data_base : data_array_part<Traits> {
     using basic_data_base::data_array_part::data_array_part;
 };
 
+template <typename Traits, typename T>
+concept traits_has_convert = requires(T&& value) {
+    { Traits::convert(NEO_FWD(value)) }
+    ->neo::convertible_to<typename Traits::variant_type>;
+};
+
+template <typename Traits, typename T>
+concept traits_has_nothrow_convert = requires(T&& value) {
+    { Traits::convert(NEO_FWD(value)) }
+    noexcept->neo::convertible_to<typename Traits::variant_type>;
+};
+
 /**
  * The class that actually contains the variant, as well as the basis member
  * `try_get()`
@@ -244,31 +256,22 @@ private:
     /// The actual variant holding our data
     variant_type _var;
 
-    template <typename T>
-    constexpr static bool _has_explicit_convert = requires(T&& value) {
-        { traits_type::convert(NEO_FWD(value)) }
-        ->neo::convertible_to<variant_type>;
-    };
-
     // Check that 'T' can convert to this data type
     template <typename T>
     constexpr static bool _convert_check =       //
         neo::convertible_to<T, variant_type> ||  // Plain conversion
-        _has_explicit_convert<T>;                // Or a convert() traits function
+        traits_has_convert<traits_type, T>;      // Or a convert() traits function
 
     // Check if the conversion (if available) is noexcept
     template <typename T>
     constexpr static bool _convert_noexcept =                //
         std::is_nothrow_constructible_v<variant_type, T> ||  //
-        requires(T&& value) {
-        { traits_type::convert(NEO_FWD(NEO_DECLVAL(T))) }
-        noexcept;
-    };
+        traits_has_nothrow_convert<traits_type, T>;
 
     template <typename T>
     requires _convert_check<T> constexpr decltype(auto)
     _convert(T&& value) noexcept(_convert_noexcept<T>) {
-        if constexpr (_has_explicit_convert<T>) {
+        if constexpr (traits_has_convert<traits_type, T>) {
             return traits_type::convert(NEO_FWD(value));
         } else {
             return NEO_FWD(value);
