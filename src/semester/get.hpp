@@ -2,6 +2,7 @@
 
 #include <neo/concepts.hpp>
 #include <neo/fwd.hpp>
+#include <neo/iterator_concepts.hpp>
 #include <neo/opt_ref.hpp>
 #include <neo/ref.hpp>
 
@@ -13,45 +14,84 @@ namespace semester {
 namespace get_detail {
 
 template <typename>
-void get(...) = delete;
+void get_if(...) = delete;
+
+template <typename>
+void try_get(...) = delete;
+
+template <typename Result, typename T>
+concept try_get_result_of =
+    neo::simple_boolean<Result> &&
+    neo::indirectly_readable<Result> &&
+    requires (Result res) {
+        { *res } -> neo::convertible_to<T>;
+    };
 
 template <typename Var, typename T>
-constexpr inline bool variant_check = true;
-
-template <typename T, typename... Types>
-constexpr inline bool variant_check<std::variant<Types...>, T> =
-    (neo::same_as<T, Types> || ...);
-
-template <typename Var, typename T>
-concept as_member = requires(std::remove_cvref_t<Var> v, neo::make_cref_t<Var&> cv) {
-    { v.template as<T>() } -> neo::alike<T>;
-    { cv.template as<T>() } -> neo::alike<T>;
+concept try_get_member = requires(Var&& v) {
+    { NEO_FWD(v).template try_get<T>() } noexcept
+        -> try_get_result_of<T>;
 };
 
 template <typename Var, typename T>
-concept get_nonmember =
-    variant_check<T, Var> &&
-    requires(std::remove_cvref_t<Var> v,
-             neo::make_cref_t<Var&> cv) {
-        { get<T>(v) } -> neo::alike<T>;
-        { get<T>(cv) } -> neo::alike<T>;
-    };
+concept try_get_nonmember = requires(Var&& v) {
+    { try_get_if<T>(NEO_FWD(v)) } noexcept
+        -> try_get_result_of<T>;
+};
+
+template <typename Var, typename T>
+concept get_if_nonmember_ref = requires(Var&& v) {
+    { get_if<T>(v) } noexcept -> try_get_result_of<T>;
+};
+
+template <typename Var, typename T>
+concept get_if_nonmember_ptr = requires(std::remove_reference_t<Var>* v) {
+    { get_if<T>(v) } noexcept -> try_get_result_of<T>;
+};
+
+template <typename Var, typename T>
+concept try_get_check =
+    get_if_nonmember_ptr<Var, T> ||
+    get_if_nonmember_ref<Var, T> ||
+    try_get_nonmember<Var, T> ||
+    try_get_member<Var, T>;
 
 }
 
 template <typename T>
+struct try_get_fn {
+    template <get_detail::try_get_check<T> Var>
+    constexpr decltype(auto) operator()(Var&& var) const noexcept {
+        using namespace get_detail;
+        if constexpr (get_if_nonmember_ptr<Var, T>) {
+            return get_if<T>(std::addressof(var));
+        } else if constexpr (get_if_nonmember_ref<Var, T>) {
+            return get_if<T>(var);
+        } else if constexpr (try_get_nonmember<Var, T>) {
+            return try_get<T>(var);
+        } else {
+            static_assert(try_get_member<Var, T>);
+            return var.template try_get<T>();
+        }
+    }
+};
+
+template <typename T>
+inline constexpr try_get_fn<T> try_get = {};
+
+template <typename T>
 struct get_fn {
     template <typename Var>
-        requires (
-            get_detail::as_member<Var, T> ||
-            get_detail::get_nonmember<Var, T>
-        )
+        requires get_detail::try_get_check<Var, T>
     constexpr decltype(auto) operator()(Var&& var) const {
-        if constexpr (get_detail::as_member<Var, T>) {
-            return NEO_FWD(var).template as<T>();
+        auto&& result = try_get<T>(var);
+        if (!result) {
+            throw std::bad_variant_access();
+        }
+        if constexpr (std::is_rvalue_reference_v<Var&&>) {
+            return std::move(*result);
         } else {
-            using get_detail::get;
-            return get<T>(NEO_FWD(var));
+            return *result;
         }
     }
 };
@@ -59,75 +99,21 @@ struct get_fn {
 template <typename T>
 inline constexpr get_fn<T> get = {};
 
-namespace holds_alt_detail {
-
-template <typename>
-void holds_alternative(...) = delete;
-
-template <typename Var, typename T>
-concept has_member = requires(const Var& v) {
-    { v.template holds_alternative<T>() } noexcept -> neo::simple_boolean;
-};
-
-template <typename Var, typename T>
-concept has_nonmember =
-    requires(const Var& v) {
-        { holds_alternative<T>(v) } noexcept -> neo::simple_boolean;
-    };
-
-template <typename Var,
-          typename T>
-struct variant_guard {
-    static constexpr bool value =
-        holds_alt_detail::has_member<Var, T> ||
-        holds_alt_detail::has_nonmember<Var, T>;
-};
-
-template <typename... Ts, typename T>
-struct variant_guard<std::variant<Ts...>, T> {
-    static constexpr bool value = (neo::same_as<Ts, T> || ...);
-};
-
-} // namespace holds_alt_detail
-
 template <typename T>
 struct holds_alternative_fn {
-    template <typename Var>
-        requires (holds_alt_detail::variant_guard<Var, T>::value)
+    template <get_detail::try_get_check<T> Var>
     constexpr bool operator()(const Var& v) const noexcept {
-        if constexpr (holds_alt_detail::has_member<Var, T>) {
-            return v.template holds_alternative<T>();
-        } else {
-            using holds_alt_detail::holds_alternative;
-            return holds_alternative<T>(v);
-        }
+        return !!try_get<T>(v);
     }
 };
 
 template <typename T>
 inline constexpr holds_alternative_fn<T> holds_alternative = {};
 
-template <typename T, typename Var>
-    requires requires(Var v) {
-        { semester::holds_alternative<T>(v) };
-        { semester::get<T>(v) };
-    }
-constexpr
-std::conditional_t<std::is_const_v<std::remove_reference_t<Var>>,
-    neo::opt_ref<const T>,
-    neo::opt_ref<T>>
-try_get(Var& v) noexcept {
-    if (semester::holds_alternative<T>(v)) {
-        return semester::get<T>(NEO_FWD(v));
-    } else {
-        return {};
-    }
-}
-
 template <typename Var, typename T>
 concept supports_alternative =
     neo::convertible_to<T, std::remove_cvref_t<Var>> &&
-    requires(Var var) {
+    requires(Var&& var) {
         try_get<T>(var);
     };
 
