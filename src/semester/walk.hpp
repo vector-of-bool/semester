@@ -517,7 +517,7 @@ public:
 
 template <typename Type, typename... Funcs>
 auto if_type(Funcs&&... fns) noexcept {
-    return if_type_fn<Type, Funcs&&...>(NEO_FWD(fns)...);
+    return if_type_fn<Type, Funcs...>(NEO_FWD(fns)...);
 }
 
 template <typename T>
@@ -609,7 +609,9 @@ inline constexpr struct walk_fn {
     static walk_result reject(std::string str) { return walk_reject{NEO_FWD(str)}; }
     template <typename Data, typename... Handlers>
     [[nodiscard]] constexpr decltype(auto) try_walk(Data&& dat, Handlers&&... hs) const {
-        detail::walk_path = "<root>";
+        if (detail::walk_path.empty()) {
+            detail::walk_path = "<root>";
+        }
         walk_seq seq(NEO_FWD(hs)...);
         return seq(NEO_FWD(dat));
     }

@@ -21,14 +21,14 @@ TEST_CASE("Create basic data") {
 
     data dat;
     CHECK(dat.is_int());  // Defaults to the first base type
-    CHECK(dat.holds_alternative<int>());
+    CHECK(semester::holds_alternative<int>(dat));
     CHECK(semester::holds_alternative<int>(dat));
 
     dat = 44;
     CHECK(dat == 44);
     CHECK(dat != 31);
     CHECK(dat.as_int() == 44);
-    CHECK(dat.as<int>() == 44);
+    CHECK(semester::get<int>(dat) == 44);
 
     CHECK(std::holds_alternative<int>(dat.variant()));
 
@@ -37,7 +37,7 @@ TEST_CASE("Create basic data") {
     CHECK_FALSE(dat != dat2);
 
     const data dat3 = dat2;
-    CHECK(std::move(dat3).as<int>() == 44);
+    CHECK(semester::get<int>(std::move(dat3)) == 44);
 
     dat = semester::empty_array;
 

@@ -1,5 +1,0 @@
-{
-    "compiler_id": "gnu",
-    "cxx_compiler": "g++-9",
-    "flags": "-fconcepts -std=c++2a -Wall -Wextra -Wconversion -pedantic",
-}
