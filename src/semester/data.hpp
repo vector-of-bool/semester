@@ -32,6 +32,12 @@ constexpr inline struct empty_array_t {
 constexpr inline struct empty_mapping_t {
 } empty_mapping;
 
+template <typename T>
+using mapping_type_t = typename std::remove_cvref_t<T>::mapping_type;
+
+template <typename T>
+using array_type_t = typename std::remove_cvref_t<T>::array_type;
+
 namespace detail {
 
 /**
@@ -163,7 +169,7 @@ struct data_mapping_part : data_impl<Traits> {
 /// Matches if traits has a `mapping_type`
 template <typename Traits>
 requires requires {
-    typename Traits::mapping_type;
+    typename mapping_type_t<Traits>;
 }
 struct data_mapping_part<Traits> : data_impl<Traits> {
     // Inherit the constructors
@@ -171,7 +177,7 @@ struct data_mapping_part<Traits> : data_impl<Traits> {
 
     constexpr static bool supports_mappings = true;
 
-    using mapping_type = typename Traits::mapping_type;
+    using mapping_type = mapping_type_t<Traits>;
 
     constexpr bool is_mapping() const noexcept {
         return semester::holds_alternative<mapping_type>(*this);
@@ -198,7 +204,7 @@ struct data_array_part : data_mapping_part<Traits> {
 /// Matches if traits has an `array_type`
 template <typename Traits>
 requires requires {
-    typename Traits::array_type;
+    typename array_type_t<Traits>;
 }
 struct data_array_part<Traits> : data_mapping_part<Traits> {
     // Inherit the constructors
@@ -206,7 +212,7 @@ struct data_array_part<Traits> : data_mapping_part<Traits> {
 
     constexpr static bool supports_arrays = true;
 
-    using array_type = typename Traits::array_type;
+    using array_type = array_type_t<Traits>;
 
     constexpr bool is_array() const noexcept {
         return semester::holds_alternative<array_type>(*this);

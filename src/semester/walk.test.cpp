@@ -112,11 +112,11 @@ TEST_CASE("Mappings") {
     // Throws for missing keys that are required
     auto result = walk.try_walk(  //
         dat,
-        mapping{
+        if_mapping(mapping{
             if_key{"foo", put_into(foo_string)},
             if_key{"baz", just_accept},
             required_key{"quux", "'quux' is required", just_accept},
-        });
+        }));
     CHECK(result.rejected());
 }
 
@@ -128,9 +128,10 @@ TEST_CASE("Array iteration") {
     bool        b = true;
     using namespace semester::walk_ops;
     semester::walk(dat,
-                   for_each(walk_seq(if_type<std::string>(put_into(string)),
-                                     if_type<double>(put_into(number)),
-                                     if_type<bool>(put_into(b)))));
+                   if_array(for_each(walk_seq(if_type<std::string>(put_into(string)),
+                                              if_type<double>(put_into(number)),
+                                              if_type<bool>(put_into(b))))),
+                   reject_with("Not array"));
     CHECK(number == 55);
     CHECK(string == "some string");
     CHECK_FALSE(b);
