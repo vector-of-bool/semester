@@ -550,12 +550,15 @@ struct if_mapping : walk_seq<Fns...> {
 
     template <supports_mappings Data>
     walk_result operator()(Data&& dat) {
-        if (semester::holds_alternative<typename Data::mapping_type>(dat)) {
+        if (semester::holds_alternative<mapping_type_t<Data>>(dat)) {
             return this->invoke(NEO_FWD(dat));
         }
         return walk_pass;
     }
 };
+
+template <typename... Fs>
+if_mapping(Fs&&...) -> if_mapping<Fs...>;
 
 template <typename... Fns>
 struct if_array : walk_seq<Fns...> {
@@ -563,12 +566,15 @@ struct if_array : walk_seq<Fns...> {
 
     template <typename Data>
     walk_result operator()(Data&& dat) {
-        if (semester::holds_alternative<typename std::decay_t<Data>::array_type>(dat)) {
+        if (semester::holds_alternative<array_type_t<Data>>(dat)) {
             return this->invoke(NEO_FWD(dat));
         }
         return walk_pass;
     }
 };
+
+template <typename... Fs>
+if_array(Fs&&...) -> if_array<Fs...>;
 
 template <typename... Funcs>
 class for_each : walk_seq<Funcs...> {
