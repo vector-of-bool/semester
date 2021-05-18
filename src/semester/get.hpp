@@ -8,7 +8,7 @@
 
 #include <variant>
 
-namespace semester {
+namespace smstr {
 
 // clang-format off
 namespace get_detail {
@@ -119,4 +119,4 @@ concept supports_alternative =
 
 // clang-format on
 
-}  // namespace semester
+}  // namespace smstr

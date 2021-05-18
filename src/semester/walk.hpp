@@ -14,7 +14,7 @@
 #include <utility>
 #include <variant>
 
-namespace semester {
+namespace smstr {
 
 // clang-format off
 
@@ -88,7 +88,7 @@ struct walk_error : std::runtime_error {
 };
 
 template <typename T>
-using array_t = decltype(semester::get<typename std::remove_cvref_t<T>::array_type>(std::declval<T>()));
+using array_t = decltype(smstr::get<typename std::remove_cvref_t<T>::array_type>(std::declval<T>()));
 
 template <typename T>
 concept supports_arrays = requires(T&& t) {
@@ -96,7 +96,7 @@ concept supports_arrays = requires(T&& t) {
 };
 
 template <typename T>
-using mapping_t = decltype(semester::get<typename std::remove_cvref_t<T>::mapping_type>(std::declval<T>()));
+using mapping_t = decltype(smstr::get<typename std::remove_cvref_t<T>::mapping_type>(std::declval<T>()));
 
 template <typename T>
 concept supports_mappings = requires(T&& t) {
@@ -326,7 +326,7 @@ public:
             } else {
                 static_assert(supports_alternative<Data, arg_type>,
                               "projection function cannot handle the argument we wish to give it");
-                auto&& proj = _project(semester::get<arg_type>(NEO_FWD(dat)));
+                auto&& proj = _project(smstr::get<arg_type>(NEO_FWD(dat)));
                 return _put(_target, NEO_FWD(proj));
             }
         }
@@ -429,7 +429,7 @@ public:
         walk_result operator()(Data&& dat) {
         using mapping_type = typename std::decay_t<Data>::mapping_type;
         _forget();
-        const mapping_type& map = semester::get<mapping_type>(NEO_FWD(dat));
+        const mapping_type& map = smstr::get<mapping_type>(NEO_FWD(dat));
         for (const auto& [key, value] : map) {
             walk_result partial_result
                 = std::apply([&](auto&&... fns) { return _try_key(key, value, fns...); }, _funcs);
@@ -508,7 +508,7 @@ public:
 
     template <typename Data>
     walk_result operator()(Data&& dat) {
-        if (semester::holds_alternative<Type>(dat)) {
+        if (smstr::holds_alternative<Type>(dat)) {
             return this->invoke(NEO_FWD(dat));
         }
         return walk_pass;
@@ -529,7 +529,7 @@ struct require_type {
 
     template <typename Data>
     walk_result operator()(Data&& dat) const noexcept {
-        if (semester::holds_alternative<T>(dat)) {
+        if (smstr::holds_alternative<T>(dat)) {
             return walk_pass;
         }
         return walk_reject{detail::walk_path + ": " + message};
@@ -550,7 +550,7 @@ struct if_mapping : walk_seq<Fns...> {
 
     template <supports_mappings Data>
     walk_result operator()(Data&& dat) {
-        if (semester::holds_alternative<mapping_type_t<Data>>(dat)) {
+        if (smstr::holds_alternative<mapping_type_t<Data>>(dat)) {
             return this->invoke(NEO_FWD(dat));
         }
         return walk_pass;
@@ -566,7 +566,7 @@ struct if_array : walk_seq<Fns...> {
 
     template <typename Data>
     walk_result operator()(Data&& dat) {
-        if (semester::holds_alternative<array_type_t<Data>>(dat)) {
+        if (smstr::holds_alternative<array_type_t<Data>>(dat)) {
             return this->invoke(NEO_FWD(dat));
         }
         return walk_pass;
@@ -584,10 +584,10 @@ public:
     template <typename Data>
     requires supports_arrays<std::decay_t<Data>> walk_result operator()(Data&& dat) {
         using array_type = typename std::decay_t<Data>::array_type;
-        if (!semester::holds_alternative<array_type>(dat)) {
+        if (!smstr::holds_alternative<array_type>(dat)) {
             return walk_reject{detail::walk_path + ": Expected an array"};
         }
-        decltype(auto) arr   = semester::get<array_type>(NEO_FWD(dat));
+        decltype(auto) arr   = smstr::get<array_type>(NEO_FWD(dat));
         int            index = 0;
         for (decltype(auto) element : arr) {
             auto prev_path = detail::walk_path;
@@ -632,7 +632,7 @@ inline constexpr struct walk_fn {
 } walk;
 
 namespace walk_ops {
-using semester::walk;
+using smstr::walk;
 }
 
-}  // namespace semester
+}  // namespace smstr

@@ -16,19 +16,19 @@ struct int_tree_traits {
 };
 
 TEST_CASE("Create basic data") {
-    using data = semester::basic_data<int_tree_traits>;
+    using data = smstr::basic_data<int_tree_traits>;
     static_assert(std::is_same_v<data::variant_type, std::variant<int, std::vector<data>>>);
 
     data dat;
     CHECK(dat.is_int());  // Defaults to the first base type
-    CHECK(semester::holds_alternative<int>(dat));
-    CHECK(semester::holds_alternative<int>(dat));
+    CHECK(smstr::holds_alternative<int>(dat));
+    CHECK(smstr::holds_alternative<int>(dat));
 
     dat = 44;
     CHECK(dat == 44);
     CHECK(dat != 31);
     CHECK(dat.as_int() == 44);
-    CHECK(semester::get<int>(dat) == 44);
+    CHECK(smstr::get<int>(dat) == 44);
 
     CHECK(std::holds_alternative<int>(dat.variant()));
 
@@ -37,9 +37,9 @@ TEST_CASE("Create basic data") {
     CHECK_FALSE(dat != dat2);
 
     const data dat3 = dat2;
-    CHECK(semester::get<int>(std::move(dat3)) == 44);
+    CHECK(smstr::get<int>(std::move(dat3)) == 44);
 
-    dat = semester::empty_array;
+    dat = smstr::empty_array;
 
     CHECK(dat.is_array());
     CHECK_FALSE(dat.is_int());

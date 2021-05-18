@@ -4,7 +4,7 @@
 
 #include <memory>
 
-namespace semester {
+namespace smstr {
 
 template <typename Data>
 struct s_expr_traits_base {
@@ -57,4 +57,4 @@ struct s_expr_traits {
 
 using s_expr_data = basic_data<s_expr_traits>;
 
-}  // namespace semester
+}  // namespace smstr

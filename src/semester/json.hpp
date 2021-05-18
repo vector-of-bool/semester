@@ -9,7 +9,7 @@
 #include <variant>
 #include <vector>
 
-namespace semester {
+namespace smstr {
 
 /**
  * Base traits for JSON-style data
@@ -24,7 +24,7 @@ struct json_traits_alloc {
         using rebind_alloc =
             typename std::allocator_traits<allocator_type>::template rebind_alloc<T>;
 
-        using null_type   = semester::null_t;
+        using null_type   = smstr::null_t;
         using bool_type   = bool;
         using number_type = double;
         using string_type = std::basic_string<char, std::char_traits<char>, rebind_alloc<char>>;
@@ -59,4 +59,4 @@ struct json_traits : json_traits_alloc<std::allocator<void>> {};
  */
 using json_data = basic_data<json_traits>;
 
-}  // namespace semester
+}  // namespace smstr

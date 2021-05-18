@@ -1,6 +1,7 @@
 #pragma once
 
 #include <semester/get.hpp>
+#include <semester/primitives.hpp>
 
 #include <neo/concepts.hpp>
 #include <neo/declval.hpp>
@@ -11,14 +12,7 @@
 #include <type_traits>
 #include <variant>
 
-namespace semester {
-
-/**
- * Type and value to represent "null" values.
- */
-constexpr inline struct null_t {
-    constexpr bool operator==(null_t) const noexcept { return true; }
-} null;
+namespace smstr {
 
 /**
  * Tag type used to construct an empty array in a data object.
@@ -66,10 +60,10 @@ struct data_conv_mems_for_intrin {};
 // Convenience macros to declare the convenience methods.
 #define DECL_CONV_MEMS(Name, Type)                                                                 \
     constexpr bool is_##Name() const noexcept {                                                    \
-        return semester::holds_alternative<Type>(AS_C_DERIVED);                                    \
+        return smstr::holds_alternative<Type>(AS_C_DERIVED);                                       \
     }                                                                                              \
-    constexpr Type&       as_##Name() noexcept { return semester::get<Type>(AS_DERIVED); }         \
-    constexpr const Type& as_##Name() const noexcept { return semester::get<Type>(AS_C_DERIVED); } \
+    constexpr Type&       as_##Name() noexcept { return smstr::get<Type>(AS_DERIVED); }            \
+    constexpr const Type& as_##Name() const noexcept { return smstr::get<Type>(AS_C_DERIVED); }    \
     static_assert(true)
 
 // Helpers for `int`
@@ -106,7 +100,7 @@ DECL_CONV_MEMS_FOR_SPEC(uint16, std::uint16_t);
 DECL_CONV_MEMS_FOR_SPEC(uint32, std::uint32_t);
 DECL_CONV_MEMS_FOR_SPEC(uint64, std::uint64_t);
 
-DECL_CONV_MEMS_FOR_SPEC(null, semester::null_t);
+DECL_CONV_MEMS_FOR_SPEC(null, smstr::null_t);
 
 #undef DECL_CONV_MEMS_FOR_SPEC
 
@@ -180,11 +174,11 @@ struct data_mapping_part<Traits> : data_impl<Traits> {
     using mapping_type = mapping_type_t<Traits>;
 
     constexpr bool is_mapping() const noexcept {
-        return semester::holds_alternative<mapping_type>(*this);
+        return smstr::holds_alternative<mapping_type>(*this);
     }
 
-    constexpr mapping_type&       as_mapping() { return semester::get<mapping_type>(*this); }
-    constexpr const mapping_type& as_mapping() const { return semester::get<mapping_type>(*this); }
+    constexpr mapping_type&       as_mapping() { return smstr::get<mapping_type>(*this); }
+    constexpr const mapping_type& as_mapping() const { return smstr::get<mapping_type>(*this); }
 
     // A constructor for an empty mapping type
     constexpr data_mapping_part(empty_mapping_t)
@@ -214,12 +208,10 @@ struct data_array_part<Traits> : data_mapping_part<Traits> {
 
     using array_type = array_type_t<Traits>;
 
-    constexpr bool is_array() const noexcept {
-        return semester::holds_alternative<array_type>(*this);
-    }
+    constexpr bool is_array() const noexcept { return smstr::holds_alternative<array_type>(*this); }
 
-    constexpr array_type&       as_array() { return semester::get<array_type>(*this); }
-    constexpr const array_type& as_array() const { return semester::get<array_type>(*this); }
+    constexpr array_type&       as_array() { return smstr::get<array_type>(*this); }
+    constexpr const array_type& as_array() const { return smstr::get<array_type>(*this); }
 
     // A constructor for an empty array type
     constexpr data_array_part(empty_array_t)
@@ -301,12 +293,12 @@ public:
 
     template <typename T>
     requires supports<T> constexpr T* try_get() noexcept {
-        return semester::try_get<T>(_var);
+        return smstr::try_get<T>(_var);
     }
 
     template <typename T>
     requires supports<T> constexpr const T* try_get() const noexcept {
-        return semester::try_get<T>(_var);
+        return smstr::try_get<T>(_var);
     }
 
     /// Get a reference to the underlying variant
@@ -330,7 +322,7 @@ public:
     template <typename T>
     requires supports<T> constexpr bool operator==(const T& rhs) const
         noexcept(noexcept(NEO_DECLVAL(const T&) == NEO_DECLVAL(const T&))) {
-        const auto ptr = semester::try_get<T>(*this);
+        const auto ptr = smstr::try_get<T>(*this);
         return ptr && (*ptr == rhs);
     }
 
@@ -355,4 +347,4 @@ public:
     using basic_data::basic_data_base::basic_data_base;
 };
 
-}  // namespace semester
+}  // namespace smstr
