@@ -4,6 +4,6 @@
     "namespace": "vob",
     "test_driver": "Catch-Main",
     "depends": [
-        "neo-fun^0.7.0"
+        "neo-fun^0.8.0"
     ]
 }

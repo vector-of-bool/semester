@@ -2,4 +2,5 @@
     "compiler_id": "gnu",
     "cxx_compiler": "g++-10",
     "flags": "-std=c++20 -Wall -Wextra -Wconversion -pedantic",
+    "debug": true
 }
