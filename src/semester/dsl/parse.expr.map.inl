@@ -44,14 +44,14 @@ cxauto parse_mapping_type_next(neo::tag<Types...>) {
                              colon.tstring_tok(S)>();
             } else {
                 static_assert(colon.spelling == ":", "Expected a colon ':' following mapping key");
-                cxauto val = parse_type_definition<colon.tstring_tail(S)>();
+                cxauto val = parse_type_definition<tailof(colon)>();
                 if cx (val.is_error) {
                     return val;
                 } else {
                     using parsed_kv = kv_pair<decltype(key.result), decltype(val.result)>;
                     cxauto next     = token::lex(val.tail);
                     if cx (next.spelling == ",") {
-                        return parse_mapping_type_next<next.tstring_tail(S)>(
+                        return parse_mapping_type_next<tailof(next)>(
                             neo::tag_v<Types..., parsed_kv>);
                     } else if cx (next.spelling == "}") {
                         return parse_result{mapping<Types..., parsed_kv>{}, next.tail};
@@ -72,7 +72,7 @@ cxauto parse_mapping_type() {
     cxauto tok = token::lex(S);
     static_assert(tok.spelling == "{");
 
-    return parse_mapping_type_next<tok.tstring_tail(S)>(neo::tag_v<>);
+    return parse_mapping_type_next<tailof(tok)>(neo::tag_v<>);
 }
 
 }  // namespace smstr::dsl::detail

@@ -21,7 +21,7 @@ struct param_list {
 };
 
 template <typename Data, int Scope, int NameIndex, typename Type>
-constexpr decltype(auto) evaluate(param_ref<Scope, NameIndex, Type>, auto&& tup) {
+constexpr decltype(auto) evaluate(var_ref_expr<Scope, NameIndex, Type>, auto&& tup) {
     auto&  scope = std::get<Scope>(tup);
     auto&& arg   = NEO_FWD(std::get<NameIndex>(scope));
     return NEO_FWD(arg);
@@ -46,8 +46,8 @@ constexpr auto evaluate(as_expr<Left, Type>, auto&& tup) {
 }
 
 template <typename Data, typename Map, typename Key, typename Value>
-constexpr void apply_generate_keys(Map& map, map_entry<Key, Value>, auto&& tup) {
-    using pair_type                  = typename Map::value_type;
+constexpr void apply_generate_keys(Map& map, lit_map_entry<Key, Value>, auto&& tup) {
+    using pair_type                  = Map::value_type;
     auto&&         key               = evaluate<Data>(Key{}, tup);
     constexpr bool key_convert_check = std::convertible_to<decltype(key), typename Map::key_type>;
     static_assert(key_convert_check,
@@ -64,7 +64,7 @@ constexpr void apply_generate_keys(Map& map, map_entry<Key, Value>, auto&& tup) 
 }
 
 template <typename Data, typename... Elems>
-constexpr Data evaluate(map_literal<Elems...>, auto&& tup) {
+constexpr Data evaluate(lit_map_expr<Elems...>, auto&& tup) {
     auto map = typename Data::mapping_type{};
     (apply_generate_keys<Data>(map, Elems{}, tup), ...);
     return map;
@@ -83,10 +83,10 @@ concept simple_basic_data_c =
 template <typename DataType, typename Body, typename... Args>
 constexpr DataType apply_generator(Args&&... args);
 
-template <typename Expression, typename ParamTuple>
+template <typename Expression, typename InitScope>
 struct evaluator {
     Expression _expr;
-    ParamTuple _tup;
+    InitScope  _tup;
 
     template <detail::simple_basic_data_c Data>
     constexpr Data evaluate() {

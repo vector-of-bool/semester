@@ -11,8 +11,8 @@ TEST_CASE("Create a JSON node") {
     CHECK(d2 == "I am a string");
     CHECK(d2 != "I am a different string");
 
-    d1 = smstr::empty_mapping;
+    d1 = smstr::empty_map;
     CHECK(d1 != d2);
-    d2 = smstr::empty_mapping;
+    d2 = smstr::empty_map;
     CHECK(d1 == d2);
 }

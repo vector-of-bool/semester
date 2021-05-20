@@ -21,19 +21,18 @@ struct json_traits_alloc {
         using allocator_type = Allocator;
 
         template <typename T>
-        using rebind_alloc =
-            typename std::allocator_traits<allocator_type>::template rebind_alloc<T>;
+        using rebind_alloc = std::allocator_traits<allocator_type>::template rebind_alloc<T>;
 
         using null_type   = smstr::null_t;
         using bool_type   = bool;
         using number_type = double;
         using string_type = std::basic_string<char, std::char_traits<char>, rebind_alloc<char>>;
 
-        using array_type   = std::vector<Data, rebind_alloc<Data>>;
-        using mapping_type = std::map<string_type,  //
-                                      Data,
-                                      std::less<>,
-                                      rebind_alloc<std::pair<const string_type, Data>>>;
+        using array_type = std::vector<Data, rebind_alloc<Data>>;
+        using map_type   = std::map<string_type,  //
+                                  Data,
+                                  std::less<>,
+                                  rebind_alloc<std::pair<const string_type, Data>>>;
 
         using variant_type = std::variant<  //
             null_type,                      //
@@ -41,7 +40,7 @@ struct json_traits_alloc {
             number_type,                    //
             bool_type,                      //
             array_type,                     //
-            mapping_type                    //
+            map_type                        //
             >;
 
         static null_type   convert(decltype(nullptr)) { return null; }

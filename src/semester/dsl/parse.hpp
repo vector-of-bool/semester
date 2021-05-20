@@ -8,6 +8,7 @@
 #include "./type.hpp"
 
 #include <semester/primitives.hpp>
+#include <semester/traits.hpp>
 
 #include <neo/fixed_string.hpp>
 #include <neo/tag.hpp>
@@ -17,16 +18,38 @@
 
 #define cx constexpr
 #define cxauto constexpr auto
-#define errcheck(Name)                                                                             \
-    if cx (Name.is_error) {                                                                        \
-        return Name;                                                                               \
-    } else
 #define guard(Name, ...)                                                                           \
     if cx (cxauto Name = __VA_ARGS__; Name.is_error) {                                             \
         return Name;                                                                               \
     } else
 
+#define tailof(Token) ((Token).tstring_tail(S))
+
 namespace smstr::dsl {
+
+template <auto TStringView, typename Lookup>
+struct parser_state {
+    static cxauto strv = TStringView;
+    using lookup       = Lookup;
+
+    static cxauto peek() { return token::lex(strv); }
+
+    template <auto TS>
+    static cxauto resolve() {
+        return Lookup::template resolve<TS>();
+    }
+
+    static cxauto add_lookup(auto names) {
+        return parser_state<TStringView, typename Lookup::template push_front<decltype(names)>>{};
+    }
+};
+
+#define state_after(State, TokenOrResult)                                                          \
+    (parser_state<(State).strv.substr((TokenOrResult).tail.data() - (State).strv.data()),          \
+                  typename decltype(State)::lookup>{})
+
+#define StateAfter(TokenOrResult) state_after(State, TokenOrResult)
+#define ParseFn(Name, ...) constexpr auto Name(auto State __VA_OPT__(, ) __VA_ARGS__)
 
 template <typename Inner>
 struct opt {};
@@ -38,7 +61,7 @@ template <typename... Inner>
 struct oneof {};
 
 template <>
-struct define<"null"> : primitive_type<null_t> {};
+constexpr null_t define<"null"> = null_t{};
 
 namespace detail {
 
@@ -58,56 +81,233 @@ cxauto parse_type_definition();
 template <auto S>
 cxauto parse_mapping_type();
 
-template <auto S, typename Lookup>
-cxauto parse_expression();
+cxauto parse_expression(auto state);
 
-cx decltype(auto) evaluate_expression(auto traits, auto body, auto&& ctx);
+template <typename Vars, typename Outer = int>
+struct scope_ctx {
+    Vars  vars;
+    Outer outer{};
 
-struct default_traits {
-    static constexpr std::int64_t number(auto str) {
-        std::int64_t ret = 0;
-        for (char32_t c : str) {
-            assert(c >= '0' && c <= '9');
-            auto val = c - '0';
-            ret *= 10;
-            ret += val;
+    cx auto push_front(auto tup) const noexcept { return detail::scope_ctx{tup, *this}; }
+
+    template <int N>
+    cx auto&& get_nth() const noexcept {
+        if cx (N == 0) {
+            return *this;
+        } else {
+            return outer.template get_nth<N - 1>();
         }
+    }
+};
+
+template <typename Traits, typename Scope>
+struct evaluation_context {
+    Traits& traits;
+    Scope&  scope;
+};
+
+template <typename T, typename S>
+explicit evaluation_context(T&, S&) -> evaluation_context<T, S>;
+
+template <typename Vars>
+explicit scope_ctx(Vars) -> scope_ctx<Vars>;
+
+template <typename Vars, typename Outer>
+explicit scope_ctx(Vars, Outer) -> scope_ctx<Vars, Outer>;
+
+template <typename Params, typename Body>
+struct function;
+
+template <typename... Elems>
+struct lit_map_expr {
+    cx auto eval(auto ctx) const {
+        auto ret = ctx.traits.new_map();
+        (Elems{}.add_to_map(ret, ctx), ...);
         return ret;
     }
 };
 
-template <int Scope, int Idx, typename Type>
-struct param_ref {};
-
-template <typename... Elems>
-struct map_literal {};
-
 template <typename Key, typename Value>
-struct map_entry {
+struct lit_map_entry {
     Key   key;
     Value value;
+
+    cx void add_to_map(auto& map, auto ctx) const {
+        auto&& key   = this->key.eval(ctx);
+        auto&& value = this->value.eval(ctx);
+        ctx.traits.map_insert(map, NEO_FWD(key), NEO_FWD(value));
+    }
+};
+
+template <typename Expr>
+struct map_spread_entry {
+    Expr expr;
+
+    cx void add_to_map(auto& map, auto ctx) const {
+        auto&& value = expr.eval(ctx);
+        ctx.traits.map_spread(map, NEO_FWD(value));
+    }
+};
+
+template <typename... Entries>
+struct lit_array_expr {
+    cx auto eval(auto ctx) const {
+        auto arr = ctx.traits.new_array();
+        (ctx.traits.array_push(arr, Entries{}.eval(ctx)), ...);
+        return arr;
+    }
+};
+
+template <int Scope, int Idx, typename Type>
+struct var_ref_expr {
+    constexpr auto& eval(auto ctx) const {
+        auto& scope = ctx.scope.template get_nth<Scope>();
+        return std::get<Idx>(scope.vars);
+    }
 };
 
 template <typename Left, typename Target>
-struct as_expr {};
+struct as_expr {
+    Left   expr;
+    Target type;
+
+    cx decltype(auto) eval(auto ctx) const {
+        auto&& value = expr.eval(ctx);
+        using type   = lookup_type<std::remove_cvref_t<decltype(value)>, Target>::type;
+        return smstr::get<type>(value);
+    }
+};
 
 template <typename Op, typename Left, typename Right>
 struct binop_expr {
     Op    op;
     Left  left;
     Right right;
+
+    cx decltype(auto) eval(auto ctx) const {
+        auto&&  left        = this->left.eval(ctx);
+        auto&&  right       = this->right.eval(ctx);
+        cx bool is_smart_op = requires { op.eval(ctx.traits, NEO_FWD(left), NEO_FWD(right)); };
+        if cx (is_smart_op) {
+            return op.eval(ctx.traits, NEO_FWD(left), NEO_FWD(right));
+        } else {
+            return op(NEO_FWD(left), NEO_FWD(right));
+        }
+    }
 };
 
 template <typename Params, typename Body>
 struct fn_expr {
     Params params;
     Body   body;
+
+    cx auto eval(auto) const { return function{params, body}; }
+};
+
+template <typename Function, typename... Args>
+struct call_expr {
+    Function          fn;
+    neo::tag<Args...> arg_exprs;
+
+    cx decltype(auto) eval(auto ctx) const {
+        auto&& func     = fn.eval(ctx);
+        cxauto has_call = requires { func.call(ctx, Args{}.eval(ctx)...); };
+        if cx (has_call) {
+            return func.call(ctx, Args{}.eval(ctx)...);
+        } else {
+            return func(Args{}.eval(ctx)...);
+        }
+    }
+};
+
+template <typename Func>
+struct call_with_ctx_wrapper {
+    Func fn;
+
+    cx decltype(auto) call(auto ctx, auto&&... args) const { return fn(ctx, NEO_FWD(args)...); }
+};
+
+template <typename T>
+struct just_expr {
+    T value;
+
+    cx auto& eval(auto) const noexcept { return value; }
+};
+
+template <typename Left, auto Ident>
+struct dot_expr {
+    Left lhs;
+
+    cx auto& eval(auto ctx) const {
+        auto&& value = lhs.eval(ctx);
+        auto&& map   = ctx.traits.as_map(NEO_FWD(value));
+        return ctx.traits.map_lookup(NEO_FWD(map), Ident.string_view());
+    }
 };
 
 template <typename WithExpr, typename NextExpr>
 struct with_expr {
     WithExpr with;
     NextExpr next_expr;
+
+    cx decltype(auto) eval(auto ctx) const {
+        auto&&             value     = with.eval(ctx);
+        auto&&             tup       = std::tie(value);
+        auto               new_scope = ctx.scope.push_front(tup);
+        evaluation_context new_ctx{ctx.traits, new_scope};
+        return next_expr.eval(new_ctx);
+    }
+};
+
+template <typename Cond, typename TrueBranch, typename FalseBranch>
+struct if_else_expr {
+    Cond        condition;
+    TrueBranch  true_branch;
+    FalseBranch false_branch;
+
+    cx decltype(auto) eval(auto ctx) const {
+        auto&& cond        = condition.eval(ctx);
+        using true_result  = decltype(true_branch.eval(ctx));
+        using false_result = decltype(false_branch.eval(ctx));
+        if cx (std::common_reference_with<true_result, false_result>) {
+            using comref = std::common_reference_t<true_result, false_result>;
+            if (cond) {
+                return comref(true_branch.eval(ctx));
+            } else {
+                return comref(false_branch.eval(ctx));
+            }
+        } else {
+            if (cond) {
+                return ctx.traits.normalize(true_branch.eval(ctx));
+            } else {
+                return ctx.traits.normalize(false_branch.eval(ctx));
+            }
+        }
+    }
+};
+
+template <bool B>
+struct bool_expr {
+    cxauto eval(auto) const { return B; }
+};
+
+struct invalid_expr {};
+
+template <typename Expression, typename InitScope>
+struct evaluator {
+    Expression _expr;
+    InitScope  _tup;
+
+    cx decltype(auto) evaluate(auto traits) const {
+        scope_ctx          scope{_tup, 0};
+        evaluation_context ctx{traits, scope};
+        return _expr.eval(ctx);
+    }
+
+    template <has_valid_data_traits Data>
+    cx operator Data() const&& {
+        return this->evaluate(data_traits<Data>{});
+    }
 };
 
 template <typename Params, typename Body>
@@ -116,11 +316,14 @@ struct function {
     Body   body;
 
     template <typename... Args>
-    cx decltype(auto) operator()(Args&&... args) const {
-        return evaluate_expression(default_traits{},
-                                   body,
-                                   std::forward_as_tuple(std::forward_as_tuple(NEO_FWD(args)...)));
+    cx decltype(auto) operator()(Args&&... args) const requires(sizeof...(Args) == Params::count) {
+        return evaluator{body, std::tie(args...)};
     }
+
+    cx decltype(auto) call(auto ctx, auto&&... args) const requires requires {
+        Params::check_compatible_argv(ctx.traits, NEO_FWD(args)...);
+    }
+    { return evaluator{body, std::tie(args...)}.evaluate(ctx.traits); }
 };
 
 template <typename T>
@@ -154,6 +357,14 @@ struct parse_error {
 ########  ######## ##       ##    ##  ######
 */
 
+cxauto skip_comma(token t) {
+    if (t.kind == t.comma) {
+        return t.next();
+    } else {
+        return t;
+    }
+}
+
 template <auto N>
 cxauto make_lineno_string() {
     if cx (N > 9) {
@@ -181,7 +392,7 @@ cxauto extract_line() {
 }
 
 template <neo::basic_fixed_string Message, auto TStringWhere>
-auto error() {
+cxauto error() {
     cxauto Full     = neo::tstring_view_v<decltype(TStringWhere)::tstring_type::string>;
     cxauto offset   = TStringWhere.data() - Full.data();
     cxauto nth_line = std::ranges::count_if(Full.string_view().substr(0, offset),
@@ -230,18 +441,18 @@ cxauto realize_string_literal() {
 template <auto S, typename Base>
 cxauto parse_type_suffix() {
     cxauto peek = token::lex(S);
-    if cx (peek.spelling == "[") {
+    if cx (peek.kind == peek.square_l) {
         cxauto peek2 = peek.next();
-        if cx (peek2.spelling != "]") {
+        if cx (peek2.kind != peek.square_r) {
             return error<"Expected closing bracket ']' following opening bracket in type",
                          peek2.tstring_tok(S)>();
         } else {
             using next = array<Base>;
-            return parse_type_suffix<peek2.tstring_tail(S), next>();
+            return parse_type_suffix<tailof(peek2), next>();
         }
-    } else if cx (peek.spelling == "?") {
+    } else if cx (peek.kind == peek.question) {
         using next = opt<Base>;
-        return parse_type_suffix<peek.tstring_tail(S), next>();
+        return parse_type_suffix<tailof(peek), next>();
     } else {
         return parse_result{Base{}, S};
     }
@@ -263,8 +474,8 @@ cxauto parse_dotted_id_1() {
         return error<"Expected an identifier following dot `.`", tok.tstring_tok(S)>();
     } else {
         cxauto peek = tok.next();
-        if cx (peek.spelling == ".") {
-            return parse_dotted_id_1<peek.tstring_tail(S), Names..., tok.tstring_tok(S)>();
+        if cx (peek.kind == peek.dot) {
+            return parse_dotted_id_1<tailof(peek), Names..., tok.tstring_tok(S)>();
         } else {
             // End of dotted-id
             cxauto ns = join_dotted_ids<Names...>();
@@ -278,8 +489,8 @@ cxauto parse_dotted_id() {
     cxauto tok = token::lex(S);
     static_assert(tok.kind == tok.ident);
     cxauto peek = tok.next();
-    if cx (peek.spelling == ".") {
-        return parse_dotted_id_1<peek.tstring_tail(S), tok.tstring_tok(S)>();
+    if cx (peek.kind == peek.dot) {
+        return parse_dotted_id_1<tailof(peek), tok.tstring_tok(S)>();
     } else {
         return parse_result{name<SM_STR(tok.spelling)>{}, tok.tail};
     }
@@ -290,17 +501,17 @@ cxauto parse_base_type() {
     cxauto tok = token::lex(S);
     if cx (tok.kind == tok.invalid) {
         return error<"Invalid leading token", tok.tstring_tok(S)>();
-    } else if cx (tok.spelling == "{") {
+    } else if cx (tok.kind == tok.brace_l) {
         return parse_mapping_type<S>();
-    } else if cx (tok.spelling == "(") {
-        cxauto inner = parse_type_definition<tok.tstring_tail(S)>();
+    } else if cx (tok.kind == tok.paren_l) {
+        cxauto inner = parse_type_definition<tailof(tok)>();
         if cx (inner.is_error) {
             return inner;
         } else {
             cxauto peek = token::lex(inner.tail);
-            if cx (peek.spelling != ")") {
+            if cx (peek.kind != peek.paren_r) {
                 return error<"Expected closing parenthesis ')' at end of type expression",
-                             inner.tstring_tail(S)>;
+                             tailof(inner)>;
             } else {
                 return parse_result{inner.result, peek.tail};
             }
@@ -321,7 +532,7 @@ cxauto parse_oneof_alternative() {
     if cx (base.is_error) {
         return base;
     } else {
-        return parse_type_suffix<base.tstring_tail(S), decltype(base.result)>();
+        return parse_type_suffix<tailof(base), decltype(base.result)>();
     }
 }
 
@@ -332,9 +543,8 @@ cxauto parse_oneof_next(neo::tag<Alts...>) {
         return new_alt;
     } else {
         cxauto peek = token::lex(new_alt.tail);
-        if cx (peek.spelling == "|") {
-            return parse_oneof_next<peek.tstring_tail(S)>(
-                neo::tag_v<Alts..., decltype(new_alt.result)>);
+        if cx (peek.kind == peek.pipe) {
+            return parse_oneof_next<tailof(peek)>(neo::tag_v<Alts..., decltype(new_alt.result)>);
         } else {
             return parse_result{oneof<Alts..., decltype(new_alt.result)>{}, new_alt.tail};
         }
@@ -348,8 +558,8 @@ cxauto parse_type_definition() {
         return single;
     } else {
         cxauto peek = token::lex(single.tail);
-        if cx (peek.spelling == "|") {
-            return parse_oneof_next<peek.tstring_tail(S)>(neo::tag_v<decltype(single.result)>);
+        if cx (peek.kind == peek.pipe) {
+            return parse_oneof_next<tailof(peek)>(neo::tag_v<decltype(single.result)>);
         } else {
             return single;
         }
@@ -361,20 +571,11 @@ auto print_error() {
     return ErrorMessage;
 }
 
-template <auto S>
-cxauto parse_type_definition_with_err_handling_1() {
-    cxauto result = parse_type_definition<S>();
-    if cx (result.is_error) {
-        return print_error<result>();
-    } else {
-        return result;
-    }
-}
-
 template <typename R>
 cxauto handle_error(R result) {
     if cx (result.is_error) {
         cxauto _ = print_error<R{}>();
+        return invalid_expr{};
     } else {
         return result.result;
     }
@@ -386,22 +587,8 @@ cxauto handle_error(R result) {
 #include "./parse.fn.inl"
 
 #include "./parse.expr.inl"
-#include "./parse_mapping.inl"
-
-#include "./exec.inl"
 
 namespace smstr::dsl {
-
-namespace detail {
-
-template <auto S>
-cxauto do_eval_str() {
-    using init_lookup = scope_chain<>;
-    cxauto expr       = detail::handle_error(detail::parse_expression<S, init_lookup>());
-    return evaluate_expression(default_traits{}, expr, std::tuple(std::forward_as_tuple()));
-}
-
-}  // namespace detail
 
 template <neo::basic_fixed_string S>
 using parse_type_t = std::remove_cvref_t<decltype(
@@ -413,9 +600,23 @@ struct type {
 };
 
 template <neo::basic_fixed_string S>
-cxauto eval_str = detail::do_eval_str<neo::tstring_view_v<S>>();
+constexpr auto eval_str_defer() {
+    using init_lookup = scope_chain<>;
+    using expr_type   = decltype(detail::handle_error(
+        detail::parse_expression(parser_state<neo::tstring_view_v<S>, init_lookup>{})));
+    return detail::evaluator{expr_type{}, std::tuple()};
+}
+
+template <neo::basic_fixed_string S>
+constexpr auto eval_str() {
+    return eval_str_defer<SM_S>().evaluate(default_traits{});
+}
 
 }  // namespace smstr::dsl
 
 #undef cxauto
 #undef cx
+#undef tailof
+#undef tail_state
+#undef StateAfter
+#undef ParseFn

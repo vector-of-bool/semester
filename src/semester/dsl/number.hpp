@@ -7,8 +7,17 @@ namespace smstr::dsl {
 struct lit_number_base {};
 
 template <neo::basic_fixed_string S>
-struct lit_number : lit_number_base {
-    constexpr static auto str = S;
+struct lit_decimal : lit_number_base {
+    constexpr static auto str = std::string_view(S);
+
+    constexpr auto eval(auto ctx) const { return ctx.traits.decimal(str); }
+};
+
+template <auto S>
+struct lit_integer : lit_number_base {
+    constexpr static auto str = std::string_view(S);
+
+    constexpr auto eval(auto ctx) const { return ctx.traits.integer(str); }
 };
 
 template <typename T>

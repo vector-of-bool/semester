@@ -47,7 +47,7 @@ constexpr auto parse_type_decl() {
     if constexpr (name.kind != token::ident) {
         return error<"Expected an identifier following `type` keyword", name.tstring_tok(S)>();
     } else {
-        constexpr auto tdef = parse_type_definition<name.tstring_tail(S)>();
+        constexpr auto tdef = parse_type_definition<(name.tstring_tail(S))>();
         if constexpr (tdef.is_error) {
             return tdef;
         } else {
@@ -61,7 +61,7 @@ template <auto S>
 constexpr auto parse_one_module_decl() {
     constexpr auto tok = token::lex(S);
     if constexpr (tok.spelling == "type") {
-        return parse_type_decl<tok.tstring_tail(S)>();
+        return parse_type_decl<(tok.tstring_tail(S))>();
     } else {
         return error<"Unknown token at module-level. Expected a declaration", tok.tstring_tok(S)>();
     }
@@ -82,7 +82,7 @@ constexpr auto parse_next_module_decl(neo::tag<Acc...>) {
                 return error<"Expect a semicolon `;` following module-level declaration",
                              semi.tstring_tok(S)>();
             } else {
-                return parse_next_module_decl<semi.tstring_tail(S)>(
+                return parse_next_module_decl<(semi.tstring_tail(S))>(
                     neo::tag_v<Acc..., decltype(decl.result)>);
             }
         }
@@ -102,6 +102,6 @@ using module_def
     = decltype(detail::handle_error(detail::parse_module_body<neo::tstring_view_v<Body>>()));
 
 template <neo::basic_fixed_string Name, neo::basic_fixed_string Inner>
-using module_lookup = typename module<SM_STR(Name)>::template decl_for_name<SM_STR(Inner)>;
+using module_lookup = module<SM_STR(Name)>::template decl_for_name<SM_STR(Inner)>;
 
 }  // namespace smstr::dsl

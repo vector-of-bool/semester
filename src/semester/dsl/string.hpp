@@ -8,7 +8,9 @@ struct lit_string_base {};
 
 template <neo::basic_fixed_string S>
 struct lit_string : lit_string_base {
-    constexpr static auto str = S;
+    constexpr static auto str = S.string_view();
+
+    constexpr auto eval(auto ctx) const { return ctx.traits.string(str); }
 };
 
 template <typename T>

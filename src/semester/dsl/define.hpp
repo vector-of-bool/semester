@@ -20,21 +20,20 @@ struct undefined_t {
 };
 
 template <neo::basic_fixed_string>
-struct define : undefined_t {};
+constexpr undefined_t define = undefined_t{};
 
 template <neo::basic_fixed_string S>
-concept undefined = std::derived_from<define<SM_S>, undefined_t>;
+concept undefined = define<SM_S> == undefined_t{};
 
 template <neo::basic_fixed_string S>
 concept defined = !undefined<SM_S>;
-
-template <neo::basic_fixed_string S>
-using type_named_t = typename define<SM_S>::type_;
 
 template <neo::basic_fixed_string Name>
 struct name {
     constexpr static std::string_view spelling = Name;
     using type                                 = undefined_t;
+
+    static void bind_arg(auto traits, auto&& value);
 };
 
 template <neo::basic_fixed_string Scope, neo::basic_fixed_string Name>
@@ -44,6 +43,8 @@ template <neo::basic_fixed_string Name, typename Type>
 struct typed_name {
     constexpr static std::string_view spelling = Name;
     using type                                 = Type;
+
+    static void bind_arg(auto traits, auto&& value);
 };
 
 }  // namespace smstr::dsl

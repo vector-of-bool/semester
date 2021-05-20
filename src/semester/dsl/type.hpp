@@ -24,7 +24,7 @@ struct lookup_type {};
         typename Data::traits_type::NestedType;                                                    \
     }                                                                                              \
     struct lookup_type<Data, name<NameString>> {                                                   \
-        using type = typename Data::traits_type::NestedType;                                       \
+        using type = Data::traits_type::NestedType;                                                \
     }
 
 DECL_LOOKUP("string", string_type);
@@ -42,6 +42,6 @@ DECL_LOOKUP("mapping", mapping_type);
 #undef DECL_LOOKUP
 
 template <typename Data, typename Name>
-using lookup_type_t = typename lookup_type<Data, Name>::type;
+using lookup_type_t = lookup_type<Data, Name>::type;
 
 }  // namespace smstr::dsl

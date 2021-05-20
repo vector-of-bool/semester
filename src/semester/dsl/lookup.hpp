@@ -1,7 +1,5 @@
 #pragma once
 
-#include <neo/value.hpp>
-
 #include <algorithm>
 
 namespace smstr {
@@ -32,17 +30,25 @@ private:
         }
     }
 
+    template <typename... Argv>
+    constexpr static bool correct_argv_count = sizeof...(Argv) == sizeof...(Variables);
+
 public:
     template <auto Name>
     constexpr static auto index_of() noexcept {
         return _lookup<0, Name>(Variables{}...);
     }
+
+    static void check_compatible_argv(auto traits, auto&&... args) requires requires {
+        requires correct_argv_count<decltype(args)...>;
+        requires(requires { (Variables::bind_arg(traits, args)); } && ...);
+    };
 };
 
 template <typename... Scopes>
 struct scope_chain {
-    template <int>
-    static constexpr auto _lookup(auto) {
+    template <int, auto>
+    static constexpr auto _lookup() {
         return resolved_name<void>{};
     }
 

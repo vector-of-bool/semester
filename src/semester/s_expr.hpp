@@ -39,10 +39,6 @@ struct s_expr_traits_base {
         friend constexpr bool operator==(const pair_type& left, const pair_type& right) noexcept {
             return left.left() == right.left() && left.right() == right.right();
         }
-
-        friend constexpr bool operator!=(const pair_type& left, const pair_type& right) noexcept {
-            return !(left == right);
-        }
     };
 
     using variant_type = std::variant<string_type, pair_type>;

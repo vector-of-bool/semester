@@ -6,6 +6,8 @@
 
 #include <neo/test_concept.hpp>
 
+using namespace smstr;
+
 struct func {
     void operator()(int) {}
 };
@@ -76,7 +78,7 @@ TEST_CASE("put_into objects") {
     // put-into using a projection function
     std::size_t length = 0;
     walk(data, put_into(length, [](std::string const& str) { return str.length(); }));
-    CHECK(length == data.as_string().length());
+    CHECK(length == as_string(data).length());
 
     // put-into with a projection and an optional
     std::optional<std::size_t> opt_length;
@@ -95,7 +97,7 @@ TEST_CASE("put_into objects") {
 }
 
 TEST_CASE("Mappings") {
-    smstr::json_data dat = smstr::json_data::mapping_type{
+    smstr::json_data dat = map_type_t<json_data>{
         {"foo", "bar"},
         {"baz", 33},
     };
@@ -121,24 +123,24 @@ TEST_CASE("Mappings") {
 }
 
 TEST_CASE("Array iteration") {
-    smstr::json_data dat = smstr::json_data::array_type{"some string", 55, false};
+    smstr::json_data dat = array_type_t<json_data>{"some string", 55, false};
 
     double      number = 0;
     std::string string;
     bool        b = true;
     using namespace smstr::walk_ops;
     smstr::walk(dat,
-                   if_array(for_each(walk_seq(if_type<std::string>(put_into(string)),
-                                              if_type<double>(put_into(number)),
-                                              if_type<bool>(put_into(b))))),
-                   reject_with("Not array"));
+                if_array(for_each(walk_seq(if_type<std::string>(put_into(string)),
+                                           if_type<double>(put_into(number)),
+                                           if_type<bool>(put_into(b))))),
+                reject_with("Not array"));
     CHECK(number == 55);
     CHECK(string == "some string");
     CHECK_FALSE(b);
 }
 
 TEST_CASE("Array insertion") {
-    smstr::json_data dat = smstr::json_data::array_type{
+    smstr::json_data dat = array_type_t<json_data>{
         "string 1",
         55,
         "string 2",
@@ -151,8 +153,8 @@ TEST_CASE("Array insertion") {
     std::vector<double>      numbers;
     using namespace smstr::walk_ops;
     smstr::walk(dat,
-                   for_each(walk_seq{if_type<std::string>(put_into{std::back_inserter(strings)}),
-                                     if_type<double>(put_into(std::back_inserter(numbers)))}));
+                for_each(walk_seq{if_type<std::string>(put_into{std::back_inserter(strings)}),
+                                  if_type<double>(put_into(std::back_inserter(numbers)))}));
     CHECK(strings == (std::vector<std::string>{"string 1", "string 2", "string 3"}));
     CHECK(numbers == (std::vector<double>{55, 8, 9}));
 }
@@ -167,7 +169,7 @@ TEST_CASE("Just accept") {
     using namespace smstr::walk_ops;
     smstr::walk(12, just_accept);
 
-    smstr::json_data dat = smstr::json_data::mapping_type{
+    smstr::json_data dat = map_type_t<json_data>{
         {"foo", smstr::null},
     };
 

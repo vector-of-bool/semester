@@ -3,6 +3,7 @@
 #include "./data.hpp"
 
 #include "./get.hpp"
+#include "./traits.hpp"
 
 #include <neo/concepts.hpp>
 #include <neo/fwd.hpp>
@@ -85,22 +86,6 @@ struct ident_project {
 
 struct walk_error : std::runtime_error {
     using std::runtime_error::runtime_error;
-};
-
-template <typename T>
-using array_t = decltype(smstr::get<typename std::remove_cvref_t<T>::array_type>(std::declval<T>()));
-
-template <typename T>
-concept supports_arrays = requires(T&& t) {
-    typename array_t<T>;
-};
-
-template <typename T>
-using mapping_t = decltype(smstr::get<typename std::remove_cvref_t<T>::mapping_type>(std::declval<T>()));
-
-template <typename T>
-concept supports_mappings = requires(T&& t) {
-    typename mapping_t<T>;
 };
 
 struct walk_reject {
@@ -254,7 +239,7 @@ struct put_into {
 
     template <typename Iter>
     struct _get_value_type<Iter, std::void_t<typename Iter::container_type::value_type>> {
-        using type = typename Iter::container_type::value_type;
+        using type = Iter::container_type::value_type;
     };
 
     template <typename Dest, typename Value>
@@ -282,7 +267,7 @@ struct put_into {
         *d = *d;
     }
     walk_result _put(Dest& into, Value&& val) const {
-        using dest_type = typename _get_value_type<Dest>::type;
+        using dest_type = _get_value_type<Dest>::type;
         if constexpr (neo::assignable_from<Dest&, Value>) {
             into = NEO_FWD(val);
         } else if constexpr (neo::assignable_from<Dest&, dest_type>) {
@@ -424,12 +409,10 @@ public:
     explicit mapping(KeyFuncs&&... ks) noexcept
         : _funcs(NEO_FWD(ks)...) {}
 
-    template <typename Data>
-    requires supports_mappings<std::decay_t<Data>>  //
-        walk_result operator()(Data&& dat) {
-        using mapping_type = typename std::decay_t<Data>::mapping_type;
+    template <supports_maps Data>
+    walk_result operator()(Data&& dat) {
         _forget();
-        const mapping_type& map = smstr::get<mapping_type>(NEO_FWD(dat));
+        auto&& map = as_map(dat);
         for (const auto& [key, value] : map) {
             walk_result partial_result
                 = std::apply([&](auto&&... fns) { return _try_key(key, value, fns...); }, _funcs);
@@ -548,9 +531,8 @@ template <typename... Fns>
 struct if_mapping : walk_seq<Fns...> {
     using if_mapping::walk_seq::walk_seq;
 
-    template <supports_mappings Data>
-    walk_result operator()(Data&& dat) {
-        if (smstr::holds_alternative<mapping_type_t<Data>>(dat)) {
+    walk_result operator()(supports_maps auto&& dat) {
+        if (is_map(dat)) {
             return this->invoke(NEO_FWD(dat));
         }
         return walk_pass;
@@ -564,9 +546,8 @@ template <typename... Fns>
 struct if_array : walk_seq<Fns...> {
     using if_array::walk_seq::walk_seq;
 
-    template <typename Data>
-    walk_result operator()(Data&& dat) {
-        if (smstr::holds_alternative<array_type_t<Data>>(dat)) {
+    walk_result operator()(supports_arrays auto&& dat) {
+        if (is_array(dat)) {
             return this->invoke(NEO_FWD(dat));
         }
         return walk_pass;
@@ -581,14 +562,12 @@ class for_each : walk_seq<Funcs...> {
 public:
     using for_each::walk_seq::walk_seq;
 
-    template <typename Data>
-    requires supports_arrays<std::decay_t<Data>> walk_result operator()(Data&& dat) {
-        using array_type = typename std::decay_t<Data>::array_type;
-        if (!smstr::holds_alternative<array_type>(dat)) {
+    walk_result operator()(supports_arrays auto&& dat) {
+        if (!is_array(dat)) {
             return walk_reject{detail::walk_path + ": Expected an array"};
         }
-        decltype(auto) arr   = smstr::get<array_type>(NEO_FWD(dat));
-        int            index = 0;
+        auto&& arr   = as_array(dat);
+        int    index = 0;
         for (decltype(auto) element : arr) {
             auto prev_path = detail::walk_path;
             detail::walk_path += "[" + std::to_string(index) + "]";

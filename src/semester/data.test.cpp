@@ -7,6 +7,8 @@
 #include <string>
 #include <variant>
 
+using namespace smstr;
+
 struct int_tree_traits {
     template <typename Data>
     struct traits {
@@ -20,29 +22,28 @@ TEST_CASE("Create basic data") {
     static_assert(std::is_same_v<data::variant_type, std::variant<int, std::vector<data>>>);
 
     data dat;
-    CHECK(dat.is_int());  // Defaults to the first base type
-    CHECK(smstr::holds_alternative<int>(dat));
-    CHECK(smstr::holds_alternative<int>(dat));
+    auto is_integer = smstr::holds_alternative<int>;
+    auto as_integer = smstr::get<int>;
+    CHECK(is_integer(dat));  // Defaults to the first base type
 
     dat = 44;
     CHECK(dat == 44);
     CHECK(dat != 31);
-    CHECK(dat.as_int() == 44);
-    CHECK(smstr::get<int>(dat) == 44);
+    CHECK(as_integer(dat) == 44);
 
-    CHECK(std::holds_alternative<int>(dat.variant()));
+    CHECK(is_integer(dat.variant()));
 
     data dat2 = dat;
     CHECK(dat == dat2);
     CHECK_FALSE(dat != dat2);
 
     const data dat3 = dat2;
-    CHECK(smstr::get<int>(std::move(dat3)) == 44);
+    CHECK(as_integer(std::move(dat3)) == 44);
 
     dat = smstr::empty_array;
 
-    CHECK(dat.is_array());
-    CHECK_FALSE(dat.is_int());
+    CHECK(is_array(dat));
+    CHECK_FALSE(is_integer(dat));
     CHECK_FALSE(dat == 44);
     CHECK(dat != 44);
 }
