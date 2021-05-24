@@ -8,6 +8,7 @@
 
 #include <variant>
 
+NEO_TEST_CONCEPT(smstr::supports_arrays<smstr::json_data>);
 NEO_TEST_CONCEPT(smstr::supports_alternative<std::variant<int, bool>, bool>);
 NEO_TEST_CONCEPT(smstr::supports_alternative<std::variant<int, bool>, int>);
 NEO_TEST_CONCEPT(!smstr::supports_alternative<std::variant<int, bool>, std::string>);

@@ -10,6 +10,7 @@
 #include <neo/iterator_concepts.hpp>
 
 #include <stdexcept>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>

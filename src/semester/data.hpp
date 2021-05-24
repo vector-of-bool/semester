@@ -98,10 +98,10 @@ public:
         : _var(_convert(NEO_FWD(arg))) {}
 
     // A constructor for an empty array type
-    constexpr basic_data(empty_array_t) noexcept requires supports_arrays<this_t>  //
+    constexpr basic_data(neo::alike<empty_array_t> auto) noexcept requires supports_arrays<this_t>  //
         : basic_data(array_type_t<this_t>()) {}
 
-    constexpr basic_data(empty_map_t) noexcept requires supports_maps<this_t>  //
+    constexpr basic_data(neo::alike<empty_map_t> auto) noexcept requires supports_maps<this_t>  //
         : basic_data(map_type_t<this_t>()) {}
 
     template <supported_alternative_of<variant_type> T>

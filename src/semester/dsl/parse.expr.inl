@@ -4,6 +4,8 @@
 
 #include <neo/utility.hpp>
 
+#include <functional>
+
 namespace smstr::dsl::detail {
 
 ParseFn(parse_map_literal, auto... elems);
@@ -258,14 +260,18 @@ ParseFn(parse_cast_expr) {
 template <typename Parser>
 ParseFn(parse_binop_expr_left_assoc);
 
+template <typename T>
+concept has_inner_binop = requires {
+    typename T::inner_binop;
+};
+
 template <typename Parser, auto LHS>
 ParseFn(parse_binop_tail) {
     cxauto peek = State.peek();
     if cx (!Parser::template should_join<peek.kind>) {
         return parse_result{LHS, State.strv};
     } else {
-        cxauto has_inner_binop = requires { typename Parser::inner_binop; };
-        if cx (has_inner_binop) {
+        if cx (has_inner_binop<Parser>) {
             guard(rhs,
                   parse_binop_expr_left_assoc<typename Parser::inner_binop>(StateAfter(peek))) {
                 using oper   = Parser::template oper_t<peek.kind>;
@@ -284,8 +290,7 @@ ParseFn(parse_binop_tail) {
 
 template <typename Parser>
 ParseFn(parse_binop_expr_left_assoc) {
-    cxauto has_inner_binop = requires { typename Parser::inner_binop; };
-    if cx (has_inner_binop) {
+    if cx (has_inner_binop<Parser>) {
         guard(expr, parse_binop_expr_left_assoc<typename Parser::inner_binop>(State)) {
             return parse_binop_tail<Parser, expr.result>(StateAfter(expr));
         }

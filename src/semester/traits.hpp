@@ -1,6 +1,5 @@
 #pragma once
 
-#include "./dsl/define.hpp"
 #include "./get.hpp"
 
 #include <neo/tag.hpp>
@@ -10,6 +9,8 @@
 #include <concepts>
 #include <cstdint>
 #include <ranges>
+#include <stdexcept>
+#include <tuple>
 
 namespace smstr {
 
@@ -237,6 +238,8 @@ concept map_like =
              const std::ranges::iterator_t<Map>    iter,
              const std::ranges::iterator_t<
                     as_const_t<Map>>               c_iter) {
+    typename key_type_t<Map>;
+    typename mapped_type_t<Map>;
     requires std::tuple_size_v<std::ranges::range_value_t<Map>> == 2;
     { c_map.find(key) }
         -> std::same_as<std::ranges::iterator_t<as_const_t<Map>>>;

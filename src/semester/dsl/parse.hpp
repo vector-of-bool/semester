@@ -178,6 +178,16 @@ struct as_expr {
     }
 };
 
+template <typename T, typename Ctx, typename Left, typename Right>
+concept is_smart_binop = requires(const T& op, Ctx ctx, Left&& l, Right&& r) {
+    op.eval(ctx.traits, NEO_FWD(l), NEO_FWD(r));
+};
+
+template <typename Func, typename... Args>
+concept has_call = requires (const Func& fn, Args&&... args) {
+    fn.call(NEO_FWD(args)...);
+};
+
 template <typename Op, typename Left, typename Right>
 struct binop_expr {
     Op    op;
@@ -185,13 +195,12 @@ struct binop_expr {
     Right right;
 
     cx decltype(auto) eval(auto ctx) const {
-        auto&&  left        = this->left.eval(ctx);
-        auto&&  right       = this->right.eval(ctx);
-        cx bool is_smart_op = requires { op.eval(ctx.traits, NEO_FWD(left), NEO_FWD(right)); };
-        if cx (is_smart_op) {
-            return op.eval(ctx.traits, NEO_FWD(left), NEO_FWD(right));
+        auto&&  l        = this->left.eval(ctx);
+        auto&&  r       = this->right.eval(ctx);
+        if cx (is_smart_binop<Op, decltype(ctx), decltype(l), decltype(r)>) {
+            return op.eval(ctx.traits, NEO_FWD(l), NEO_FWD(r));
         } else {
-            return op(NEO_FWD(left), NEO_FWD(right));
+            return op(NEO_FWD(l), NEO_FWD(r));
         }
     }
 };
@@ -211,8 +220,7 @@ struct call_expr {
 
     cx decltype(auto) eval(auto ctx) const {
         auto&& func     = fn.eval(ctx);
-        cxauto has_call = requires { func.call(ctx, Args{}.eval(ctx)...); };
-        if cx (has_call) {
+        if cx (has_call<Function, decltype(ctx), decltype(Args{}.eval(ctx))...>) {
             return func.call(ctx, Args{}.eval(ctx)...);
         } else {
             return func(Args{}.eval(ctx)...);
